@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0e1016">
+<title>Gridlock Rush</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-void:#0e1016;
+    --asphalt:#262a38;
+    --asphalt-night:#181b26;
+    --shoulder:#333748;
+    --lane-line:#f4c95d;
+    --cream:#f2ede4;
+    --cream-dim:#9b9689;
+    --cyan:#4dd8e6;
+    --coral:#ff5f6d;
+    --violet:#8b7cf6;
+    --amber:#ffb454;
+    --mint:#5fd88f;
+    --panel:#1a1c26;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{
+    position:fixed;inset:0;margin:0;padding:0;
+    width:100%;height:100%;overflow:hidden;
+    overscroll-behavior:none;
+    background:var(--bg-void);
+    font-family:'Rajdhani',sans-serif;
+    -webkit-user-select:none;user-select:none;
+    -webkit-touch-callout:none;
+  }
+  #app{position:fixed;inset:0;overflow:hidden;background:var(--bg-void);}
+  canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;display:block;}
+
+  /* ---------- HUD (during play) ---------- */
+  #hud{
+    position:absolute;top:0;left:0;right:0;
+    padding:calc(env(safe-area-inset-top) + 12px) 16px 0 16px;
+    pointer-events:none;
+    opacity:0;transition:opacity .2s;
+  }
+  #hud.active{opacity:1;}
+  .hud-top{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  .level-tag{
+    font-weight:700;font-size:13px;letter-spacing:.14em;color:var(--cream);
+    text-transform:uppercase;opacity:.85;
+  }
+  .level-tag span{color:var(--cyan);}
+  #pauseBtn{
+    pointer-events:auto;
+    width:36px;height:36px;border-radius:9px;border:1px solid rgba(242,237,228,.25);
+    background:rgba(20,22,30,.55);color:var(--cream);
+    display:flex;align-items:center;justify-content:center;font-size:16px;
+  }
+  .ribbon-track{
+    margin-top:8px;height:9px;border-radius:5px;background:rgba(255,255,255,.08);
+    box-shadow:inset 0 1px 3px rgba(0,0,0,.5);overflow:hidden;position:relative;
+  }
+  .ribbon-fill{
+    height:100%;width:0%;border-radius:5px;
+    background:linear-gradient(90deg,var(--cyan),var(--mint));
+    box-shadow:0 0 10px rgba(77,216,230,.7);
+    transition:width .12s linear;
+  }
+  #hint{
+    margin-top:14px;text-align:center;font-size:13px;color:var(--cream-dim);
+    letter-spacing:.06em;opacity:0;transition:opacity .4s;
+  }
+  #hint.show{opacity:1;}
+
+  /* ---------- Screens ---------- */
+  .screen{
+    position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;
+    padding:calc(env(safe-area-inset-top) + 18px) 20px calc(env(safe-area-inset-bottom) + 18px);
+    pointer-events:none;opacity:0;transition:opacity .25s ease;
+    background:rgba(10,11,16,.72);backdrop-filter:blur(3px);
+  }
+  .screen.active{pointer-events:auto;opacity:1;}
+
+  h1.title{
+    font-weight:700;font-size:38px;letter-spacing:.03em;color:var(--cream);
+    margin:0 0 2px 0;text-transform:uppercase;
+    text-shadow:0 0 18px rgba(77,216,230,.45);
+  }
+  h1.title em{font-style:normal;color:var(--cyan);}
+  .subtitle{color:var(--cream-dim);font-size:15px;margin:0 0 22px 0;letter-spacing:.02em;}
+
+  .panel{
+    width:100%;max-width:360px;overflow-y:auto;-webkit-overflow-scrolling:touch;
+    touch-action:pan-y;max-height:100%;
+  }
+
+  .level-card{
+    display:flex;align-items:center;gap:14px;
+    background:var(--panel);border:1px solid rgba(242,237,228,.08);
+    border-radius:12px;padding:12px 14px;margin-bottom:10px;
+    position:relative;overflow:hidden;
+  }
+  .level-card::before{
+    content:"";position:absolute;left:0;top:0;bottom:0;width:5px;
+    background:var(--accent,var(--cyan));
+  }
+  .level-card.locked{opacity:.42;}
+  .level-num{
+    width:40px;height:40px;flex:0 0 auto;border-radius:9px;
+    background:rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center;
+    font-weight:700;font-size:19px;color:var(--accent,var(--cyan));
+    clip-path:polygon(0 0,100% 0,100% 76%,76% 100%,0 100%);
+  }
+  .level-info{flex:1;text-align:left;}
+  .level-name{font-weight:700;font-size:16px;letter-spacing:.05em;color:var(--cream);text-transform:uppercase;}
+  .level-sub{font-size:12px;color:var(--cream-dim);margin-top:1px;}
+  .level-status{font-size:12px;font-weight:600;letter-spacing:.08em;color:var(--cream-dim);flex:0 0 auto;}
+  .level-status.cleared{color:var(--mint);}
+  .level-card button.hit{
+    position:absolute;inset:0;border:0;background:transparent;pointer-events:auto;
+  }
+
+  .btn{
+    pointer-events:auto;appearance:none;border:none;cursor:pointer;
+    font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:.08em;
+    text-transform:uppercase;font-size:15px;padding:13px 26px;border-radius:10px;
+    min-height:46px;color:var(--bg-void);background:var(--cyan);
+    box-shadow:0 0 16px rgba(77,216,230,.4);margin-top:10px;
+  }
+  .btn.ghost{background:transparent;color:var(--cream);border:1px solid rgba(242,237,228,.3);box-shadow:none;}
+  .btn.coral{background:var(--coral);box-shadow:0 0 16px rgba(255,95,109,.4);}
+
+  #screen-ready .readyLevel{color:var(--accent,var(--cyan));}
+  .stat-row{display:flex;gap:22px;margin:14px 0 4px 0;}
+  .stat{text-align:center;}
+  .stat b{display:block;font-size:22px;color:var(--cream);}
+  .stat span{font-size:11px;color:var(--cream-dim);letter-spacing:.08em;text-transform:uppercase;}
+
+  .crash-icon,.win-icon{font-size:44px;margin-bottom:6px;}
+  .footer-note{margin-top:20px;font-size:11px;color:var(--cream-dim);letter-spacing:.05em;}
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="game"></canvas>
+
+  <div id="hud">
+    <div class="hud-top">
+      <div class="level-tag">ROUTE <span id="hudLevelNum">1</span> — <span id="hudLevelName">CITY LIMITS</span></div>
+      <button id="pauseBtn" aria-label="Pause">II</button>
+    </div>
+    <div class="ribbon-track"><div class="ribbon-fill" id="ribbonFill"></div></div>
+    <div id="hint">TAP LEFT OR RIGHT SIDE OF THE SCREEN TO CHANGE LANES</div>
+  </div>
+
+  <!-- MENU -->
+  <div class="screen active" id="screen-menu">
+    <h1 class="title">GRIDLOCK <em>RUSH</em></h1>
+    <p class="subtitle">Dodge traffic across 5 routes. Tap left or right to steer.</p>
+    <div class="panel" id="levelGrid"></div>
+  </div>
+
+  <!-- READY -->
+  <div class="screen" id="screen-ready">
+    <p class="subtitle" style="margin-bottom:6px;">GET READY FOR</p>
+    <h1 class="title readyLevel" id="readyName">CITY LIMITS</h1>
+    <p class="subtitle" id="readySub">3 lanes · easy traffic</p>
+  </div>
+
+  <!-- PAUSED -->
+  <div class="screen" id="screen-paused">
+    <h1 class="title">PAUSED</h1>
+    <button class="btn" id="resumeBtn">Resume</button>
+    <button class="btn ghost" id="quitBtn">Quit to menu</button>
+  </div>
+
+  <!-- CRASHED -->
+  <div class="screen" id="screen-crashed">
+    <div class="crash-icon">💥</div>
+    <h1 class="title" style="color:var(--coral);text-shadow:0 0 18px rgba(255,95,109,.5);">CRASHED</h1>
+    <p class="subtitle" id="crashSub">You made it 14s into City Limits.</p>
+    <button class="btn coral" id="retryBtn">Try again</button>
+    <button class="btn ghost" id="crashMenuBtn">Route select</button>
+  </div>
+
+  <!-- COMPLETE -->
+  <div class="screen" id="screen-complete">
+    <div class="win-icon">🏁</div>
+    <h1 class="title" id="completeTitle">ROUTE CLEAR</h1>
+    <p class="subtitle" id="completeSub">City Limits complete.</p>
+    <button class="btn" id="nextBtn">Next route</button>
+    <button class="btn ghost" id="completeMenuBtn">Route select</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------------- Config ---------------- */
+  var PALETTE = ['#4dd8e6','#5fd88f','#ffb454','#8b7cf6','#ff5f6d'];
+  var TRAFFIC_COLORS = ['#ff5f6d','#ffb454','#8b7cf6','#5fd88f'];
+
+  var LEVELS = [
+    {name:"CITY LIMITS",   sub:"3 lanes · light traffic",  lanes:3, speed:210, spawn:1150, duration:22, night:false, truckChance:0},
+    {name:"RUSH HOUR",     sub:"3 lanes · steady traffic", lanes:3, speed:260, spawn:900,  duration:26, night:false, truckChance:0},
+    {name:"NIGHT DRIVE",   sub:"4 lanes · headlights only",lanes:4, speed:300, spawn:800,  duration:30, night:true,  truckChance:0.1},
+    {name:"HIGHWAY CHAOS", sub:"4 lanes · trucks incoming",lanes:4, speed:355, spawn:660,  duration:34, night:true,  truckChance:0.22},
+    {name:"REDLINE",       sub:"4 lanes · full send",       lanes:4, speed:420, spawn:520,  duration:38, night:true,  truckChance:0.3}
+  ];
+
+  /* ---------------- State ---------------- */
+  var state = 'menu';           // menu | ready | playing | paused | crashed | complete
+  var levelIndex = 0;
+  var unlockedLevels = new Set([0]);
+  var elapsed = 0;
+  var roadOffset = 0;
+  var spawnTimer = 0;
+  var crashFlash = 0;
+  var hintShown = false;
+  var hintTimer = 0;
+  var traffic = [];
+  var clearedFinal = false;
+  var player = {lane:0, x:0, y:0, w:30, h:52};
+  var W=0, H=0, DPR=1, roadX=0, roadWidth=0, laneWidth=0;
+  var lastTime = 0;
+  var pausedFrom = 'playing';
+
+  /* ---------------- DOM ---------------- */
+  var canvas = document.getElementById('game');
+  var ctx = canvas.getContext('2d');
+  var app = document.getElementById('app');
+  var screens = {
+    menu: document.getElementById('screen-menu'),
+    ready: document.getElementById('screen-ready'),
+    paused: document.getElementById('screen-paused'),
+    crashed: document.getElementById('screen-crashed'),
+    complete: document.getElementById('screen-complete')
+  };
+  var hud = document.getElementById('hud');
+  var ribbonFill = document.getElementById('ribbonFill');
+  var hudLevelNum = document.getElementById('hudLevelNum');
+  var hudLevelName = document.getElementById('hudLevelName');
+  var hintEl = document.getElementById('hint');
+  var levelGrid = document.getElementById('levelGrid');
+
+  /* ---------------- Persistence (best effort) ---------------- */
+  function loadProgress(){
+    if(!window.storage){ renderLevelGrid(); return; }
+    window.storage.get('progress', false).then(function(res){
+      if(res && res.value){
+        try{
+          var data = JSON.parse(res.value);
+          if(Array.isArray(data.unlocked)) unlockedLevels = new Set(data.unlocked);
+          if(data.clearedFinal) clearedFinal = true;
+        }catch(e){}
+      }
+      renderLevelGrid();
+    }).catch(function(){ renderLevelGrid(); });
+  }
+  function saveProgress(){
+    if(!window.storage) return;
+    try{
+      window.storage.set('progress', JSON.stringify({unlocked:Array.from(unlockedLevels), clearedFinal:clearedFinal}), false).catch(function(){});
+    }catch(e){}
+  }
+
+  /* ---------------- Layout ---------------- */
+  function resize(){
+    var rect = app.getBoundingClientRect();
+    W = rect.width; H = rect.height;
+    DPR = Math.min(window.devicePixelRatio || 1, 3);
+    canvas.width = Math.round(W*DPR);
+    canvas.height = Math.round(H*DPR);
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+    layoutRoad();
+  }
+  function layoutRoad(){
+    var lanes = LEVELS[levelIndex].lanes;
+    roadWidth = Math.min(W*0.84, 460);
+    roadX = (W - roadWidth)/2;
+    laneWidth = roadWidth/lanes;
+    player.w = laneWidth*0.52;
+    player.h = player.w*1.75;
+    player.y = H - player.h*1.55;
+    player.x = laneX(player.lane);
+  }
+  function laneX(i){ return roadX + laneWidth*(i+0.5); }
+
+  /* ---------------- Menu ---------------- */
+  function renderLevelGrid(){
+    levelGrid.innerHTML = '';
+    LEVELS.forEach(function(lv, i){
+      var unlocked = unlockedLevels.has(i);
+      var isLastLevel = i===LEVELS.length-1;
+      var cleared = isLastLevel ? clearedFinal : unlockedLevels.has(i+1);
+      var card = document.createElement('div');
+      card.className = 'level-card' + (unlocked ? '' : ' locked');
+      card.style.setProperty('--accent', PALETTE[i]);
+      card.innerHTML =
+        '<div class="level-num">'+(i+1)+'</div>' +
+        '<div class="level-info">' +
+          '<div class="level-name">'+lv.name+'</div>' +
+          '<div class="level-sub">'+lv.sub+'</div>' +
+        '</div>' +
+        '<div class="level-status'+(cleared?' cleared':'')+'">' +
+          (unlocked ? (cleared ? '✓ CLEAR' : '') : 'LOCKED') +
+        '</div>';
+      if(unlocked){
+        var hit = document.createElement('button');
+        hit.className = 'hit';
+        hit.setAttribute('aria-label','Play '+lv.name);
+        hit.addEventListener('click', (function(idx){ return function(){ goReady(idx); }; })(i));
+        card.appendChild(hit);
+      }
+      levelGrid.appendChild(card);
+    });
+  }
+
+  function showScreen(name){
+    Object.keys(screens).forEach(function(k){
+      screens[k].classList.toggle('active', k===name);
+    });
+  }
+
+  /* ---------------- Flow ---------------- */
+  function goReady(idx){
+    levelIndex = idx;
+    state = 'ready';
+    showScreen('ready');
+    hud.classList.remove('active');
+    var lv = LEVELS[idx];
+    document.getElementById('readyName').textContent = lv.name;
+    document.getElementById('readyName').style.color = PALETTE[idx];
+    document.getElementById('readySub').textContent = lv.sub;
+    setTimeout(function(){
+      if(state==='ready') beginLevel(idx);
+    }, 1100);
+  }
+
+  function beginLevel(idx){
+    levelIndex = idx;
+    var lv = LEVELS[idx];
+    layoutRoad();
+    player.lane = Math.floor(lv.lanes/2);
+    player.x = laneX(player.lane);
+    traffic = [];
+    elapsed = 0;
+    spawnTimer = lv.spawn*0.6;
+    crashFlash = 0;
+    state = 'playing';
+    hudLevelNum.textContent = (idx+1);
+    hudLevelName.textContent = lv.name;
+    ribbonFill.style.width = '0%';
+    hud.classList.add('active');
+    showScreen('none');
+    if(!hintShown){
+      hintEl.classList.add('show');
+      hintTimer = 3.2;
+    }
+  }
+
+  function crash(){
+    state = 'crashed';
+    document.getElementById('crashSub').textContent =
+      'You made it ' + Math.floor(elapsed) + 's into ' + LEVELS[levelIndex].name + '.';
+    showScreen('crashed');
+  }
+
+  function completeLevel(){
+    state = 'complete';
+    var isLast = levelIndex === LEVELS.length-1;
+    if(!isLast){
+      unlockedLevels.add(levelIndex+1);
+    } else {
+      clearedFinal = true;
+    }
+    saveProgress();
+    document.getElementById('completeTitle').textContent = isLast ? 'ALL ROUTES CLEAR' : 'ROUTE CLEAR';
+    document.getElementById('completeSub').textContent = LEVELS[levelIndex].name + ' complete — ' + Math.floor(elapsed) + 's.';
+    var nextBtn = document.getElementById('nextBtn');
+    nextBtn.style.display = isLast ? 'none' : 'inline-block';
+    showScreen('complete');
+    renderLevelGrid();
+  }
+
+  function changeLane(dir){
+    var lv = LEVELS[levelIndex];
+    player.lane = Math.max(0, Math.min(lv.lanes-1, player.lane+dir));
+  }
+
+  /* ---------------- Spawning ---------------- */
+  function spawnTraffic(){
+    var lv = LEVELS[levelIndex];
+    var lane = Math.floor(Math.random()*lv.lanes);
+    for(var i=0;i<traffic.length;i++){
+      if(traffic[i].lane===lane && traffic[i].y < 190){ return; } // too close, skip this tick
+    }
+    var isTruck = lv.truckChance>0 && Math.random()<lv.truckChance;
+    var w = laneWidth*(isTruck?0.72:0.54);
+    var h = w*(isTruck?2.05:1.7);
+    traffic.push({
+      lane:lane, x:laneX(lane), y:-h,
+      w:w, h:h,
+      color: TRAFFIC_COLORS[Math.floor(Math.random()*TRAFFIC_COLORS.length)],
+      speedMul: 0.92+Math.random()*0.18
+    });
+  }
+
+  /* ---------------- Update / Render ---------------- */
+  function update(dt){
+    var ambientSpeed = state==='playing' ? LEVELS[levelIndex].speed : (state==='paused' ? 0 : 70);
+    roadOffset += ambientSpeed * dt;
+
+    if(hintTimer>0){
+      hintTimer -= dt;
+      if(hintTimer<=0){ hintEl.classList.remove('show'); hintShown = true; }
+    }
+
+    if(state!=='playing') {
+      if(crashFlash>0) crashFlash = Math.max(0, crashFlash-dt*2.2);
+      return;
+    }
+
+    var lv = LEVELS[levelIndex];
+    elapsed += dt;
+    var pct = Math.min(1, elapsed/lv.duration);
+    ribbonFill.style.width = (pct*100).toFixed(1)+'%';
+
+    // smooth lane follow
+    var targetX = laneX(player.lane);
+    player.x += (targetX-player.x)*Math.min(1, dt*9);
+
+    // spawn logic, ramping up within the level
+    spawnTimer -= dt*1000;
+    if(spawnTimer<=0){
+      spawnTraffic();
+      var ramp = 1 - 0.35*pct;
+      spawnTimer = Math.max(300, lv.spawn*ramp);
+    }
+
+    // move traffic + collision
+    for(var i=traffic.length-1;i>=0;i--){
+      var t = traffic[i];
+      t.y += lv.speed*t.speedMul*dt;
+      if(t.y - t.h/2 > H+40){ traffic.splice(i,1); continue; }
+      if(Math.abs(t.x-player.x) < (t.w+player.w)/2*0.8 &&
+         Math.abs(t.y-player.y) < (t.h+player.h)/2*0.78){
+        crashFlash = 1;
+        crash();
+        return;
+      }
+    }
+
+    if(elapsed >= lv.duration){
+      completeLevel();
+    }
+  }
+
+  function drawRoad(){
+    var lv = LEVELS[levelIndex];
+    ctx.fillStyle = lv.night ? '#0f1119' : '#171a22';
+    ctx.fillRect(0,0,W,H);
+
+    ctx.fillStyle = lv.night ? '#181b26' : '#262a38';
+    ctx.fillRect(roadX,0,roadWidth,H);
+
+    ctx.fillStyle = '#333748';
+    ctx.fillRect(roadX-8,0,8,H);
+    ctx.fillRect(roadX+roadWidth,0,8,H);
+
+    ctx.strokeStyle = 'rgba(244,201,93,0.85)';
+    ctx.lineWidth = 3;
+    var dash = 26, gap = 20;
+    var off = roadOffset % (dash+gap);
+    for(var lane=1; lane<lv.lanes; lane++){
+      var x = roadX + laneWidth*lane;
+      ctx.setLineDash([dash,gap]);
+      ctx.lineDashOffset = -off;
+      ctx.beginPath();
+      ctx.moveTo(x,0);
+      ctx.lineTo(x,H);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+
+    if(lv.night){
+      var vg = ctx.createRadialGradient(W/2,H*0.35,H*0.15,W/2,H*0.35,H*0.75);
+      vg.addColorStop(0,'rgba(0,0,0,0)');
+      vg.addColorStop(1,'rgba(0,0,0,0.55)');
+      ctx.fillStyle = vg;
+      ctx.fillRect(0,0,W,H);
+    }
+  }
+
+  function drawCarShape(x,y,w,h,color,glow){
+    ctx.save();
+    ctx.translate(x,y);
+    if(glow){
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 16;
+    }
+    ctx.fillStyle = color;
+    roundRect(-w/2,-h/2,w,h,w*0.32);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(14,16,22,0.55)';
+    roundRect(-w*0.32,-h*0.28,w*0.64,h*0.34,w*0.16);
+    ctx.fill();
+    ctx.restore();
+  }
+  function roundRect(x,y,w,h,r){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath();
+  }
+
+  function drawHeadlights(){
+    ctx.save();
+    var grad = ctx.createLinearGradient(0,player.y,0,player.y-H*0.55);
+    grad.addColorStop(0,'rgba(242,237,228,0.16)');
+    grad.addColorStop(1,'rgba(242,237,228,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(player.x-player.w*0.32, player.y-player.h*0.2);
+    ctx.lineTo(player.x-player.w*1.5, player.y-H*0.55);
+    ctx.lineTo(player.x+player.w*1.5, player.y-H*0.55);
+    ctx.lineTo(player.x+player.w*0.32, player.y-player.h*0.2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function render(){
+    drawRoad();
+    var lv = LEVELS[levelIndex];
+    if(lv.night && state!=='menu') drawHeadlights();
+    for(var i=0;i<traffic.length;i++){
+      var t = traffic[i];
+      drawCarShape(t.x,t.y,t.w,t.h,t.color,false);
+    }
+    if(state==='playing' || state==='paused' || state==='ready'){
+      drawCarShape(player.x,player.y,player.w,player.h,'#4dd8e6',true);
+    }
+    if(crashFlash>0){
+      ctx.fillStyle = 'rgba(255,95,109,'+(crashFlash*0.45)+')';
+      ctx.fillRect(0,0,W,H);
+    }
+  }
+
+  function loop(ts){
+    if(!lastTime) lastTime = ts;
+    var dt = (ts-lastTime)/1000;
+    lastTime = ts;
+    dt = Math.min(dt,0.05);
+    update(dt);
+    render();
+    requestAnimationFrame(loop);
+  }
+
+  /* ---------------- Input ---------------- */
+  canvas.addEventListener('pointerdown', function(e){
+    if(state!=='playing') return;
+    e.preventDefault();
+    var rect = canvas.getBoundingClientRect();
+    var x = e.clientX - rect.left;
+    changeLane(x < rect.width/2 ? -1 : 1);
+  }, {passive:false});
+
+  window.addEventListener('keydown', function(e){
+    if(state!=='playing') return;
+    if(e.key==='ArrowLeft') changeLane(-1);
+    if(e.key==='ArrowRight') changeLane(1);
+  });
+
+  document.getElementById('pauseBtn').addEventListener('click', function(){
+    if(state!=='playing') return;
+    pausedFrom = state;
+    state = 'paused';
+    showScreen('paused');
+  });
+  document.getElementById('resumeBtn').addEventListener('click', function(){
+    state = 'playing';
+    showScreen('none');
+  });
+  document.getElementById('quitBtn').addEventListener('click', function(){
+    state = 'menu';
+    hud.classList.remove('active');
+    showScreen('menu');
+    renderLevelGrid();
+  });
+  document.getElementById('retryBtn').addEventListener('click', function(){
+    beginLevel(levelIndex);
+  });
+  document.getElementById('crashMenuBtn').addEventListener('click', function(){
+    state = 'menu';
+    hud.classList.remove('active');
+    showScreen('menu');
+    renderLevelGrid();
+  });
+  document.getElementById('nextBtn').addEventListener('click', function(){
+    goReady(Math.min(LEVELS.length-1, levelIndex+1));
+  });
+  document.getElementById('completeMenuBtn').addEventListener('click', function(){
+    state = 'menu';
+    hud.classList.remove('active');
+    showScreen('menu');
+    renderLevelGrid();
+  });
+
+  document.addEventListener('visibilitychange', function(){
+    if(document.hidden && state==='playing'){
+      pausedFrom = state;
+      state = 'paused';
+      showScreen('paused');
+    }
+  });
+
+  window.addEventListener('resize', resize);
+  window.addEventListener('orientationchange', function(){ setTimeout(resize,120); });
+
+  /* ---------------- Init ---------------- */
+  function init(){
+    resize();
+    loadProgress();
+    requestAnimationFrame(loop);
+  }
+  init();
+})();
+</script>
+</body>
+</html>
