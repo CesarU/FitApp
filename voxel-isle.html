@@ -66,15 +66,20 @@
 
   #hotbar {
     position: absolute; left: 50%; bottom: calc(2vh + env(safe-area-inset-bottom));
-    transform: translateX(-50%); display: flex; gap: 8px;
-    background: rgba(0,0,0,0.32); padding: 8px; border-radius: 14px;
+    transform: translateX(-50%); display: flex; gap: 6px;
+    background: rgba(0,0,0,0.32); padding: 7px; border-radius: 14px;
     pointer-events: auto; z-index: 2;
   }
   .slot {
-    width: 42px; height: 42px; border-radius: 8px;
+    position: relative; width: 38px; height: 38px; border-radius: 7px;
     border: 2px solid rgba(255,255,255,0.35); cursor: pointer;
   }
   .slot.selected { border-color: #fff; box-shadow: 0 0 0 2px rgba(255,255,255,0.9) inset; }
+  .slot .count {
+    position: absolute; right: 2px; bottom: 1px; font-size: 10px; font-weight: 700;
+    color: #fff; text-shadow: 0 0 2px #000, 0 0 2px #000; pointer-events: none;
+  }
+  #placeBtn { transition: opacity 0.15s ease; }
 
   #overlay {
     position: fixed; inset: 0; z-index: 10;
@@ -127,7 +132,8 @@
   document.addEventListener("dblclick", function (e) { e.preventDefault(); });
 
   // ---------- constants ----------
-  var WORLD_SIZE = 28;
+  var WORLD_SIZE = 34;
+  var WATER_LEVEL = 5;
   var MAX_Y = 48;
   var EYE_HEIGHT = 1.6;
   var PLAYER_R = 0.3;
@@ -135,7 +141,7 @@
   var JUMP_V = 8.4;
   var SPEED = 4.3;
   var LOOK_SENS = 0.0032;
-  var INSTANCE_CAP = 6000;
+  var INSTANCE_CAP = 9000;
 
   var BLOCK_COLORS = {
     grass:  ["#6abe4f", "#5aa543", "#7bc95f"],
@@ -143,22 +149,38 @@
     stone:  ["#8f8f8f", "#7d7d7d", "#9c9c9c"],
     sand:   ["#e3d1a0", "#d9c48f", "#ecdcae"],
     wood:   ["#8a6136", "#6f4c28", "#93693c"],
-    leaves: ["#3f8f3a", "#357931", "#4aa042"]
+    leaves: ["#3f8f3a", "#357931", "#4aa042"],
+    snow:   ["#f4f8fb", "#e9f1f7", "#ffffff"]
   };
-  var HOTBAR = ["grass", "dirt", "stone", "sand", "wood", "leaves"];
+  var HOTBAR = ["grass", "dirt", "stone", "sand", "snow", "wood", "leaves"];
   var selectedType = "dirt";
+  var inventory = { grass: 0, dirt: 0, stone: 0, sand: 0, wood: 0, leaves: 0, snow: 0 };
+  var BLOCK_SOUND = {
+    stone:  { freq: 90,  wave: "square" },
+    dirt:   { freq: 140, wave: "triangle" },
+    sand:   { freq: 260, wave: "triangle" },
+    wood:   { freq: 180, wave: "sawtooth" },
+    grass:  { freq: 200, wave: "triangle" },
+    leaves: { freq: 420, wave: "sine" },
+    snow:   { freq: 340, wave: "sine" }
+  };
 
   // ---------- world data ----------
   var blocks = new Map(); // "x,y,z" -> type
+  var animalSpawnCandidates = [];
 
   function key(x, y, z) { return x + "," + y + "," + z; }
-  function isSolid(x, y, z) {
+  function isPresent(x, y, z) {
     return blocks.has(key(Math.floor(x), Math.floor(y), Math.floor(z)));
   }
+  function isSolid(x, y, z) {
+    var t = blocks.get(key(Math.floor(x), Math.floor(y), Math.floor(z)));
+    return !!t && t !== "water";
+  }
   function isExposed(x, y, z) {
-    return !isSolid(x + 1, y, z) || !isSolid(x - 1, y, z) ||
-           !isSolid(x, y + 1, z) || !isSolid(x, y - 1, z) ||
-           !isSolid(x, y, z + 1) || !isSolid(x, y, z - 1);
+    return !isPresent(x + 1, y, z) || !isPresent(x - 1, y, z) ||
+           !isPresent(x, y + 1, z) || !isPresent(x, y - 1, z) ||
+           !isPresent(x, y, z + 1) || !isPresent(x, y, z - 1);
   }
 
   function hash2(x, z) {
@@ -175,32 +197,91 @@
     var nx1 = h01 * (1 - u) + h11 * u;
     return nx0 * (1 - v) + nx1 * v;
   }
+  function hash3(x, y, z) {
+    var s = Math.sin(x * 127.1 + y * 269.5 + z * 311.7) * 43758.5453123;
+    return s - Math.floor(s);
+  }
+  function noise3D(x, y, z) {
+    var xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z);
+    var xf = x - xi, yf = y - yi, zf = z - zi;
+    var u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf), w = zf * zf * (3 - 2 * zf);
+    function h(dx, dy, dz) { return hash3(xi + dx, yi + dy, zi + dz); }
+    var x00 = h(0, 0, 0) * (1 - u) + h(1, 0, 0) * u;
+    var x10 = h(0, 1, 0) * (1 - u) + h(1, 1, 0) * u;
+    var x01 = h(0, 0, 1) * (1 - u) + h(1, 0, 1) * u;
+    var x11 = h(0, 1, 1) * (1 - u) + h(1, 1, 1) * u;
+    var y0 = x00 * (1 - v) + x10 * v;
+    var y1 = x01 * (1 - v) + x11 * v;
+    return y0 * (1 - w) + y1 * w;
+  }
+
+  // Large-scale noise selects a biome per column; small offset decorrelates it from height noise.
+  function biomeAt(x, z) {
+    var n = smoothNoise(x * 0.045 + 500, z * 0.045 + 500);
+    if (n < 0.42) return "desert";
+    if (n < 0.58) return "plains";
+    return "snow";
+  }
+  function terrainNoiseRaw(x, z) {
+    return smoothNoise(x * 0.08, z * 0.08) * 0.6 +
+           smoothNoise(x * 0.2, z * 0.2) * 0.3 +
+           smoothNoise(x * 0.5, z * 0.5) * 0.1;
+  }
   function terrainHeight(x, z) {
-    var n = smoothNoise(x * 0.08, z * 0.08) * 0.6 +
-            smoothNoise(x * 0.2, z * 0.2) * 0.3 +
-            smoothNoise(x * 0.5, z * 0.5) * 0.1;
+    var biome = biomeAt(x, z);
+    var n = terrainNoiseRaw(x, z);
+    if (biome === "desert") return Math.floor(3 + n * 5);
+    if (biome === "snow") return Math.floor(6 + n * 11);
     return Math.floor(4 + n * 8);
   }
 
   function generateWorld() {
     for (var x = 0; x < WORLD_SIZE; x++) {
       for (var z = 0; z < WORLD_SIZE; z++) {
+        var biome = biomeAt(x, z);
         var h = terrainHeight(x, z);
         for (var y = 0; y < h; y++) {
           var type;
-          if (y === h - 1) type = h <= 5 ? "sand" : "grass";
-          else if (y >= h - 3) type = "dirt";
-          else type = "stone";
+          if (y === h - 1) {
+            if (biome === "desert") type = "sand";
+            else if (biome === "snow") type = "snow";
+            else type = h <= 5 ? "sand" : "grass";
+          } else if (y >= h - 3) {
+            type = "dirt";
+          } else {
+            type = "stone";
+          }
+          // carve caves out of the solid interior, leaving the surface crust and a bedrock floor intact
+          if (y >= 1 && y <= h - 3) {
+            var cn = noise3D(x * 0.13, y * 0.18, z * 0.13);
+            if (cn > 0.63) continue;
+          }
           blocks.set(key(x, y, z), type);
         }
       }
     }
-    // trees
-    for (var i = 0; i < 24; i++) {
+    // fill low dips with water up to sea level (mostly forms lakes near desert/plains beaches)
+    for (var wx = 0; wx < WORLD_SIZE; wx++) {
+      for (var wz = 0; wz < WORLD_SIZE; wz++) {
+        var wh = terrainHeight(wx, wz);
+        if (wh < WATER_LEVEL) {
+          for (var wy = wh; wy < WATER_LEVEL; wy++) {
+            var wk = key(wx, wy, wz);
+            if (!blocks.has(wk)) blocks.set(wk, "water");
+          }
+        }
+      }
+    }
+    // trees, biome-appropriate: none in desert, thinner in snow
+    for (var i = 0; i < 40; i++) {
       var tx = 2 + Math.floor(Math.random() * (WORLD_SIZE - 4));
       var tz = 2 + Math.floor(Math.random() * (WORLD_SIZE - 4));
+      var tbiome = biomeAt(tx, tz);
+      if (tbiome === "desert") continue;
+      if (tbiome === "snow" && Math.random() < 0.6) continue;
       var th = terrainHeight(tx, tz);
-      if (th <= 5) continue;
+      if (th <= 5 && tbiome === "plains") continue;
+      if (!blocks.has(key(tx, th - 1, tz))) continue; // don't root a tree over a cave mouth
       var trunkH = 3 + Math.floor(Math.random() * 2);
       var ty;
       for (ty = th; ty < th + trunkH; ty++) blocks.set(key(tx, ty, tz), "wood");
@@ -215,6 +296,17 @@
             if (!blocks.has(k)) blocks.set(k, "leaves");
           }
         }
+      }
+    }
+    // gather dry, unobstructed plains grass tops as animal spawn points
+    for (var ax = 0; ax < WORLD_SIZE; ax++) {
+      for (var az = 0; az < WORLD_SIZE; az++) {
+        if (biomeAt(ax, az) !== "plains") continue;
+        var ah = terrainHeight(ax, az);
+        if (ah < WATER_LEVEL || ah <= 5) continue;
+        if (blocks.get(key(ax, ah - 1, az)) !== "grass") continue;
+        if (blocks.has(key(ax, ah, az))) continue;
+        animalSpawnCandidates.push({ x: ax + 0.5, z: az + 0.5 });
       }
     }
   }
@@ -247,32 +339,90 @@
   sun.position.set(0.4, 1, 0.3);
   scene.add(sun);
 
-  function makeTexture(colors) {
-    var size = 16;
+  function newCanvas() {
     var c = document.createElement("canvas");
-    c.width = size; c.height = size;
-    var ctx = c.getContext("2d");
-    for (var y = 0; y < size; y++) {
-      for (var x = 0; x < size; x++) {
-        ctx.fillStyle = colors[Math.floor(Math.random() * colors.length)];
-        ctx.fillRect(x, y, 1, 1);
-      }
-    }
+    c.width = 16; c.height = 16;
+    return c;
+  }
+  function finishTex(c) {
     var tex = new THREE.CanvasTexture(c);
     tex.magFilter = THREE.NearestFilter;
     tex.minFilter = THREE.NearestFilter;
     return tex;
   }
+  function makeTexture(colors) {
+    var c = newCanvas(), ctx = c.getContext("2d");
+    for (var y = 0; y < 16; y++) {
+      for (var x = 0; x < 16; x++) {
+        ctx.fillStyle = colors[Math.floor(Math.random() * colors.length)];
+        ctx.fillRect(x, y, 1, 1);
+      }
+    }
+    return finishTex(c);
+  }
+  function makeCappedSideTexture(capColors, baseColors, capRows) {
+    var c = newCanvas(), ctx = c.getContext("2d");
+    for (var y = 0; y < 16; y++) {
+      var palette = y < capRows ? capColors : baseColors;
+      for (var x = 0; x < 16; x++) {
+        ctx.fillStyle = palette[Math.floor(Math.random() * palette.length)];
+        ctx.fillRect(x, y, 1, 1);
+      }
+    }
+    return finishTex(c);
+  }
+  function makeWoodTopTexture() {
+    var c = newCanvas(), ctx = c.getContext("2d");
+    ctx.fillStyle = BLOCK_COLORS.wood[0];
+    ctx.fillRect(0, 0, 16, 16);
+    for (var r = 7.5; r > 0; r -= 1.5) {
+      ctx.strokeStyle = BLOCK_COLORS.wood[Math.floor(r) % BLOCK_COLORS.wood.length];
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(8, 8, r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    return finishTex(c);
+  }
+
+  var tex = {
+    grassTop: makeTexture(BLOCK_COLORS.grass),
+    grassSide: makeCappedSideTexture(BLOCK_COLORS.grass, BLOCK_COLORS.dirt, 4),
+    dirt: makeTexture(BLOCK_COLORS.dirt),
+    stone: makeTexture(BLOCK_COLORS.stone),
+    sand: makeTexture(BLOCK_COLORS.sand),
+    woodSide: makeTexture(BLOCK_COLORS.wood),
+    woodTop: makeWoodTopTexture(),
+    leaves: makeTexture(BLOCK_COLORS.leaves),
+    snowTop: makeTexture(BLOCK_COLORS.snow),
+    snowSide: makeCappedSideTexture(BLOCK_COLORS.snow, BLOCK_COLORS.dirt, 5)
+  };
+  function matOf(t) { return new THREE.MeshLambertMaterial({ map: t }); }
+  // BoxGeometry face group order: +x, -x, +y(top), -y(bottom), +z, -z
+  var materialsByType = {
+    grass: [matOf(tex.grassSide), matOf(tex.grassSide), matOf(tex.grassTop), matOf(tex.dirt), matOf(tex.grassSide), matOf(tex.grassSide)],
+    dirt: matOf(tex.dirt),
+    stone: matOf(tex.stone),
+    sand: matOf(tex.sand),
+    wood: [matOf(tex.woodSide), matOf(tex.woodSide), matOf(tex.woodTop), matOf(tex.woodTop), matOf(tex.woodSide), matOf(tex.woodSide)],
+    leaves: matOf(tex.leaves),
+    snow: [matOf(tex.snowSide), matOf(tex.snowSide), matOf(tex.snowTop), matOf(tex.dirt), matOf(tex.snowSide), matOf(tex.snowSide)]
+  };
 
   var geo = new THREE.BoxGeometry(1, 1, 1);
   var meshes = {};
   Object.keys(BLOCK_COLORS).forEach(function (type) {
-    var mat = new THREE.MeshLambertMaterial({ map: makeTexture(BLOCK_COLORS[type]) });
-    var mesh = new THREE.InstancedMesh(geo, mat, INSTANCE_CAP);
+    var mesh = new THREE.InstancedMesh(geo, materialsByType[type], INSTANCE_CAP);
     mesh.count = 0;
     scene.add(mesh);
     meshes[type] = mesh;
   });
+
+  var waterMat = new THREE.MeshLambertMaterial({ color: 0x3a7bd5, transparent: true, opacity: 0.75 });
+  var waterMesh = new THREE.InstancedMesh(geo, waterMat, INSTANCE_CAP);
+  waterMesh.count = 0;
+  scene.add(waterMesh);
+  meshes.water = waterMesh;
 
   var outline = new THREE.LineSegments(
     new THREE.EdgesGeometry(new THREE.BoxGeometry(1.02, 1.02, 1.02)),
@@ -280,6 +430,53 @@
   );
   outline.visible = false;
   scene.add(outline);
+
+  // ---------- particles ----------
+  var particleGeo = new THREE.BoxGeometry(0.15, 0.15, 0.15);
+  var particleMaterials = {};
+  Object.keys(BLOCK_COLORS).forEach(function (type) {
+    particleMaterials[type] = new THREE.MeshBasicMaterial({ color: new THREE.Color(BLOCK_COLORS[type][0]) });
+  });
+  var particles = [];
+  var PARTICLE_CAP = 150;
+  function spawnParticles(x, y, z, type, count) {
+    var mat = particleMaterials[type];
+    if (!mat) return;
+    for (var i = 0; i < count; i++) {
+      if (particles.length >= PARTICLE_CAP) {
+        var old = particles.shift();
+        scene.remove(old.mesh);
+      }
+      var mesh = new THREE.Mesh(particleGeo, mat);
+      mesh.position.set(x + 0.5 + (Math.random() - 0.5) * 0.6, y + 0.5 + (Math.random() - 0.5) * 0.6, z + 0.5 + (Math.random() - 0.5) * 0.6);
+      scene.add(mesh);
+      particles.push({
+        mesh: mesh,
+        vx: (Math.random() - 0.5) * 2.4,
+        vy: Math.random() * 2.6 + 0.6,
+        vz: (Math.random() - 0.5) * 2.4,
+        life: 0.45 + Math.random() * 0.25,
+        maxLife: 0.7
+      });
+    }
+  }
+  function updateParticles(dt) {
+    for (var i = particles.length - 1; i >= 0; i--) {
+      var p = particles[i];
+      p.life -= dt;
+      if (p.life <= 0) {
+        scene.remove(p.mesh);
+        particles.splice(i, 1);
+        continue;
+      }
+      p.vy -= 6 * dt;
+      p.mesh.position.x += p.vx * dt;
+      p.mesh.position.y += p.vy * dt;
+      p.mesh.position.z += p.vz * dt;
+      var s = Math.max(p.life / p.maxLife, 0);
+      p.mesh.scale.setScalar(s);
+    }
+  }
 
   var dummy = new THREE.Object3D();
   function rebuildMeshes() {
@@ -304,6 +501,81 @@
 
   generateWorld();
   rebuildMeshes();
+
+  // ---------- animals ----------
+  var sheepBodyGeo = new THREE.BoxGeometry(0.55, 0.45, 0.85);
+  var sheepHeadGeo = new THREE.BoxGeometry(0.28, 0.28, 0.28);
+  var sheepLegGeo = new THREE.BoxGeometry(0.12, 0.28, 0.12);
+  var sheepBodyMat = new THREE.MeshLambertMaterial({ color: 0xf5f2e9 });
+  var sheepDarkMat = new THREE.MeshLambertMaterial({ color: 0x4a4038 });
+  function makeSheep() {
+    var group = new THREE.Group();
+    [[-0.18, 0.14, 0.28], [0.18, 0.14, 0.28], [-0.18, 0.14, -0.28], [0.18, 0.14, -0.28]].forEach(function (o) {
+      var leg = new THREE.Mesh(sheepLegGeo, sheepDarkMat);
+      leg.position.set(o[0], o[1], o[2]);
+      group.add(leg);
+    });
+    var body = new THREE.Mesh(sheepBodyGeo, sheepBodyMat);
+    body.position.set(0, 0.505, 0);
+    group.add(body);
+    var head = new THREE.Mesh(sheepHeadGeo, sheepDarkMat);
+    head.position.set(0, 0.62, 0.52);
+    group.add(head);
+    return group;
+  }
+  var animals = [];
+  var ANIMAL_COUNT = 8;
+  function spawnAnimals() {
+    var pool = animalSpawnCandidates.slice();
+    for (var i = 0; i < ANIMAL_COUNT && pool.length > 0; i++) {
+      var idx = Math.floor(Math.random() * pool.length);
+      var c = pool.splice(idx, 1)[0];
+      var group = makeSheep();
+      scene.add(group);
+      animals.push({ group: group, x: c.x, z: c.z, dir: Math.random() * Math.PI * 2, timer: Math.random() * 3 });
+    }
+  }
+  spawnAnimals();
+  function updateAnimals(dt) {
+    for (var i = 0; i < animals.length; i++) {
+      var a = animals[i];
+      a.timer -= dt;
+      if (a.timer <= 0) {
+        a.dir = Math.random() * Math.PI * 2;
+        a.timer = 2 + Math.random() * 3;
+      }
+      var speed = 0.6;
+      var nx = a.x + Math.sin(a.dir) * speed * dt;
+      var nz = a.z + Math.cos(a.dir) * speed * dt;
+      if (nx < 1 || nx > WORLD_SIZE - 2) { a.dir = Math.PI - a.dir; nx = a.x; }
+      if (nz < 1 || nz > WORLD_SIZE - 2) { a.dir = -a.dir; nz = a.z; }
+      a.x = nx; a.z = nz;
+      var gy = terrainHeight(a.x, a.z);
+      a.group.position.set(a.x, gy, a.z);
+      a.group.rotation.y = a.dir;
+    }
+  }
+
+  // ---------- day/night cycle ----------
+  var DAY_LENGTH = 240;
+  var dayTime = 0.5;
+  var COL_NIGHT = new THREE.Color(0x0b1330);
+  var COL_DAY = new THREE.Color(0x8fd0ff);
+  var COL_SUNSET = new THREE.Color(0xff9d5c);
+  var skyColor = new THREE.Color();
+  function updateDayNight(dt) {
+    dayTime = (dayTime + dt / DAY_LENGTH) % 1;
+    var elevation = Math.sin(dayTime * Math.PI * 2 - Math.PI / 2); // -1 midnight .. 1 noon
+    var t = (elevation + 1) / 2;
+    skyColor.copy(COL_NIGHT).lerp(COL_DAY, t);
+    var twilight = Math.max(0, 1 - Math.abs(elevation) * 2.2);
+    skyColor.lerp(COL_SUNSET, twilight * 0.45);
+    scene.background.copy(skyColor);
+    scene.fog.color.copy(skyColor);
+    hemi.intensity = 0.25 + Math.max(elevation, 0) * 0.65;
+    sun.intensity = 0.15 + Math.max(elevation, 0) * 0.65;
+    sun.position.set(Math.cos(dayTime * Math.PI * 2), elevation, 0.35);
+  }
 
   // ---------- player ----------
   var spawnH = terrainHeight(Math.floor(WORLD_SIZE / 2), Math.floor(WORLD_SIZE / 2));
@@ -403,20 +675,31 @@
   function doMine() {
     if (!currentTarget) return;
     var h = currentTarget.hit;
-    if (blocks.delete(key(h.x, h.y, h.z))) {
+    var k = key(h.x, h.y, h.z);
+    var type = blocks.get(k);
+    if (type && blocks.delete(k)) {
+      inventory[type] = (inventory[type] || 0) + 1;
+      updateHotbarUI();
       rebuildMeshes();
-      playTone(120, 0.07, "triangle");
+      spawnParticles(h.x, h.y, h.z, type, 7);
+      var snd = BLOCK_SOUND[type] || { freq: 150, wave: "triangle" };
+      playTone(snd.freq, 0.08, snd.wave);
     }
   }
   function doPlace() {
     if (!currentTarget || !currentTarget.place) return;
+    if ((inventory[selectedType] || 0) <= 0) { playTone(90, 0.06, "sawtooth"); return; }
     var p = currentTarget.place;
     if (!inWorldBounds(p) || insidePlayer(p)) return;
     var k = key(p.x, p.y, p.z);
     if (blocks.has(k)) return;
     blocks.set(k, selectedType);
+    inventory[selectedType]--;
+    updateHotbarUI();
     rebuildMeshes();
-    playTone(300, 0.05, "square");
+    spawnParticles(p.x, p.y, p.z, selectedType, 4);
+    var snd = BLOCK_SOUND[selectedType] || { freq: 150, wave: "square" };
+    playTone(snd.freq * 1.3, 0.05, snd.wave);
   }
 
   // ---------- audio ----------
@@ -524,14 +807,30 @@
     var slot = document.createElement("div");
     slot.className = "slot" + (type === selectedType ? " selected" : "");
     slot.style.background = BLOCK_COLORS[type][0];
+    slot.dataset.type = type;
+    var badge = document.createElement("span");
+    badge.className = "count";
+    badge.textContent = "0";
+    slot.appendChild(badge);
     slot.addEventListener("pointerdown", function (e) {
       e.stopPropagation();
       selectedType = type;
       Array.prototype.forEach.call(hotbarEl.children, function (c) { c.classList.remove("selected"); });
       slot.classList.add("selected");
+      updateHotbarUI();
     });
     hotbarEl.appendChild(slot);
   });
+
+  function updateHotbarUI() {
+    Array.prototype.forEach.call(hotbarEl.children, function (slot) {
+      var type = slot.dataset.type;
+      var badge = slot.querySelector(".count");
+      if (badge) badge.textContent = inventory[type] || 0;
+    });
+    placeBtn.style.opacity = (inventory[selectedType] || 0) > 0 ? "1" : "0.4";
+  }
+  updateHotbarUI();
 
   // ---------- keyboard (desktop testing) ----------
   var keys = {};
@@ -564,6 +863,9 @@
     camera.rotation.x = player.pitch;
     camera.rotation.y = player.yaw;
     updateTarget();
+    updateParticles(dt);
+    updateAnimals(dt);
+    updateDayNight(dt);
 
     renderer.render(scene, camera);
   }
