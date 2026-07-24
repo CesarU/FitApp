@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bands Only — Upper/Lower Split</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#18191b;
+    --surface:#212325;
+    --surface-2:#292b2e;
+    --line:#37393c;
+    --text:#ede9e2;
+    --text-dim:#96989a;
+    --text-faint:#5f6163;
+    --light:#d9a72e;
+    --medium:#c97a2e;
+    --heavy:#a83232;
+    --rest:#3e6e5e;
+    --done:#7a9b5e;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Manrope',sans-serif;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+    padding-bottom:60px;
+  }
+  .wrap{max-width:640px;margin:0 auto;padding:0 18px;}
+
+  /* HEADER */
+  header{
+    padding:32px 18px 20px;
+    border-bottom:1px solid var(--line);
+  }
+  .eyebrow{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:.16em;
+    color:var(--text-faint);
+    text-transform:uppercase;
+    margin:0 0 8px;
+  }
+  h1{
+    font-family:'Oswald',sans-serif;
+    font-weight:700;
+    text-transform:uppercase;
+    font-size:clamp(28px,7vw,40px);
+    letter-spacing:.01em;
+    line-height:0.95;
+    margin:0 0 10px;
+    max-width:640px;
+  }
+  header p{
+    color:var(--text-dim);
+    font-size:14.5px;
+    line-height:1.5;
+    margin:0;
+    max-width:52ch;
+  }
+
+  /* LEGEND */
+  .legend{
+    display:flex;
+    gap:18px;
+    flex-wrap:wrap;
+    padding:16px 18px;
+    border-bottom:1px solid var(--line);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:.04em;
+    color:var(--text-dim);
+  }
+  .legend-item{display:flex;align-items:center;gap:7px;}
+  .dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+  .reset-week-btn{
+    margin-left:auto;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    color:var(--text-faint);
+    background:transparent;
+    border:1px solid var(--line);
+    border-radius:999px;
+    padding:5px 11px;
+    cursor:pointer;
+    transition:color .15s, border-color .15s;
+  }
+  .reset-week-btn:hover{color:var(--text-dim);border-color:var(--text-faint);}
+  .reset-week-btn.confirming{
+    color:var(--heavy);
+    border-color:var(--heavy);
+  }
+  .reset-week-btn.success{
+    color:var(--done);
+    border-color:var(--done);
+  }
+
+  /* WEEK STRIP */
+  .week-strip{
+    display:flex;
+    gap:8px;
+    padding:16px 18px;
+    overflow-x:auto;
+    border-bottom:1px solid var(--line);
+    scrollbar-width:none;
+    position:sticky;
+    top:0;
+    background:var(--bg);
+    z-index:10;
+  }
+  .week-strip::-webkit-scrollbar{display:none;}
+  .day-pill{
+    position:relative;
+    flex:0 0 auto;
+    width:74px;
+    padding:10px 0 9px;
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:10px;
+    text-align:center;
+    cursor:pointer;
+    transition:border-color .15s, background .15s;
+  }
+  .day-pill:hover{border-color:var(--text-faint);}
+  .day-pill.active{
+    background:var(--surface-2);
+    border-color:var(--text);
+  }
+  .pill-check{
+    position:absolute;
+    top:-6px;
+    right:-6px;
+    width:16px;height:16px;
+    border-radius:50%;
+    background:var(--done);
+    display:flex;align-items:center;justify-content:center;
+  }
+  .pill-check svg{width:9px;height:9px;}
+  .day-pill .dow{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    letter-spacing:.1em;
+    color:var(--text-faint);
+    text-transform:uppercase;
+  }
+  .day-pill .tag{
+    font-family:'Oswald',sans-serif;
+    font-size:13px;
+    font-weight:600;
+    letter-spacing:.02em;
+    margin-top:3px;
+    color:var(--text-dim);
+  }
+  .day-pill.active .tag{color:var(--text);}
+  .day-pill .bar{
+    height:3px;
+    border-radius:2px;
+    margin:7px auto 0;
+    width:28px;
+  }
+  .day-pill.is-today{box-shadow:inset 0 0 0 1px var(--text);}
+
+  /* DAY CONTENT */
+  .day-panel{padding:22px 18px 8px;}
+  .day-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    margin-bottom:18px;
+    gap:12px;
+  }
+  .day-title{
+    font-family:'Oswald',sans-serif;
+    font-weight:700;
+    text-transform:uppercase;
+    font-size:24px;
+    letter-spacing:.01em;
+  }
+  .day-sub{
+    font-size:13px;
+    color:var(--text-dim);
+    margin-top:3px;
+  }
+  .day-focus-tag{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    padding:5px 9px;
+    border-radius:6px;
+    white-space:nowrap;
+  }
+
+  .rest-panel{
+    padding:60px 18px;
+    text-align:center;
+  }
+  .rest-panel .rest-word{
+    font-family:'Oswald',sans-serif;
+    font-size:34px;
+    font-weight:700;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    color:var(--rest);
+  }
+  .rest-panel p{
+    color:var(--text-dim);
+    font-size:14px;
+    max-width:38ch;
+    margin:12px auto 0;
+    line-height:1.5;
+  }
+
+  /* EXERCISE CARD */
+  .exercise{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:14px 14px 15px;
+    margin-bottom:10px;
+    transition:opacity .15s;
+  }
+  .exercise.done{opacity:.45;}
+  .ex-top{
+    display:flex;
+    align-items:flex-start;
+    gap:12px;
+  }
+  .ex-info{flex:1 1 auto;}
+  .ex-name-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+  }
+  .video-btn{
+    flex:0 0 auto;
+    width:24px;height:24px;
+    border-radius:50%;
+    border:1px solid var(--line);
+    background:var(--surface-2);
+    color:var(--text-faint);
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;
+    transition:border-color .15s, color .15s;
+    padding:0;
+  }
+  .video-btn:hover{border-color:var(--text-dim);color:var(--text-dim);}
+  .video-btn svg{width:9px;height:9px;margin-left:1px;}
+  .ex-name{
+    font-weight:700;
+    font-size:15.5px;
+    letter-spacing:.005em;
+  }
+  .ex-meta{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-top:8px;
+    gap:12px;
+  }
+  .ex-sets{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:13px;
+    color:var(--text-dim);
+    letter-spacing:.02em;
+  }
+  .tension{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    flex:0 0 auto;
+  }
+  .tension-label{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:9.5px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--text-faint);
+  }
+  .tension-bars{display:flex;gap:2.5px;}
+  .tension-bars i{
+    display:block;
+    width:6px;height:13px;
+    border-radius:2px;
+    background:var(--surface-2);
+  }
+  .tension-bars i.on{background:var(--seg-color);}
+  .tension-bars i.dashed{
+    background:transparent;
+    border:1.5px dashed var(--text-faint);
+    width:4.5px;
+  }
+
+  .ex-note{
+    margin-top:8px;
+    padding-top:8px;
+    border-top:1px dashed var(--line);
+    font-size:12px;
+    line-height:1.5;
+    color:var(--text-dim);
+  }
+
+  .section-divider{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--text-faint);
+    padding-top:14px;
+    margin-top:6px;
+    margin-bottom:8px;
+    border-top:1px solid var(--line);
+  }
+
+  /* MOBILITY (warm-up / balance) — visually distinct but quiet */
+  .mobility-block{
+    margin-bottom:14px;
+    padding:12px 14px;
+    border:1px solid var(--line);
+    border-left:2px solid var(--rest);
+    border-radius:10px;
+    background:transparent;
+  }
+  .mobility-tag{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--rest);
+    margin-bottom:8px;
+  }
+  .mobility-list{display:flex;flex-direction:column;gap:6px;}
+  .mobility-item{
+    display:flex;
+    justify-content:space-between;
+    gap:12px;
+    font-size:13px;
+  }
+  .mobility-name{color:var(--text-dim);}
+  .mobility-detail{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11.5px;
+    color:var(--text-faint);
+    white-space:nowrap;
+  }
+
+  /* SET DOTS */
+  .set-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-top:10px;
+    padding-top:10px;
+    border-top:1px solid var(--line);
+  }
+  .set-row-label{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--text-faint);
+    flex:0 0 auto;
+  }
+  .set-dots{display:flex;gap:6px;flex-wrap:wrap;}
+  .set-dot{
+    width:30px;height:30px;
+    border-radius:50%;
+    border:1.5px solid var(--line);
+    background:var(--surface-2);
+    color:var(--text-dim);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    transition:background .15s, border-color .15s, color .15s;
+  }
+  .set-dot:hover{border-color:var(--text-faint);}
+  .set-dot.filled{
+    background:var(--text);
+    border-color:var(--text);
+    color:var(--bg);
+    font-weight:600;
+  }
+  .set-input{
+    width:38px;height:30px;
+    border-radius:8px;
+    border:1.5px solid var(--text);
+    background:var(--surface);
+    color:var(--text);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:13px;
+    text-align:center;
+    padding:0;
+    -moz-appearance:textfield;
+  }
+  .set-input::-webkit-outer-spin-button,
+  .set-input::-webkit-inner-spin-button{
+    -webkit-appearance:none;
+    margin:0;
+  }
+  .reps-summary{
+    margin-top:8px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:.04em;
+    color:var(--text-faint);
+  }
+  .reps-summary-last{
+    margin-top:6px;
+    margin-bottom:-2px;
+    opacity:.7;
+  }
+
+  /* REST TIMER */
+  .rest-timer{
+    position:fixed;
+    left:50%;
+    bottom:18px;
+    transform:translate(-50%, 20px);
+    opacity:0;
+    pointer-events:none;
+    display:flex;
+    align-items:center;
+    gap:12px;
+    background:var(--surface-2);
+    border:1px solid var(--line);
+    border-radius:999px;
+    padding:10px 8px 10px 16px;
+    box-shadow:0 8px 24px rgba(0,0,0,.45);
+    z-index:100;
+    transition:opacity .2s, transform .2s;
+    cursor:pointer;
+  }
+  .rest-timer.show{
+    opacity:1;
+    transform:translate(-50%, 0);
+    pointer-events:auto;
+  }
+  .rest-timer-text{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:13px;
+    letter-spacing:.02em;
+    color:var(--text);
+  }
+  .rest-timer-skip{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    color:var(--text-faint);
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:999px;
+    padding:5px 10px;
+  }
+
+  /* FOOTER NOTES */
+  .notes{
+    margin-top:26px;
+    padding:18px;
+    background:var(--surface);
+    border-top:1px solid var(--line);
+    border-bottom:1px solid var(--line);
+  }
+  .notes h3{
+    font-family:'Oswald',sans-serif;
+    text-transform:uppercase;
+    font-size:15px;
+    letter-spacing:.04em;
+    margin:0 0 12px;
+  }
+  .notes ul{margin:0;padding-left:18px;color:var(--text-dim);font-size:13.5px;line-height:1.65;}
+  .notes li{margin-bottom:6px;}
+  .notes li b{color:var(--text);}
+
+  footer{
+    text-align:center;
+    padding:20px 18px 0;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;
+    letter-spacing:.08em;
+    color:var(--text-faint);
+    text-transform:uppercase;
+  }
+
+  @media (max-width:420px){
+    .day-title{font-size:21px;}
+    .ex-name{font-size:14.5px;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <p class="eyebrow">Home training / bands only</p>
+  <h1>Upper &amp; Lower<br>Split</h1>
+  <p>Two upper days, two lower days, resistance bands only. Built for 2× weekly frequency per muscle group. Shift the days around to fit your week — the order matters more than the calendar.</p>
+</header>
+
+<div class="legend">
+  <div class="legend-item"><span class="dot" style="background:var(--light)"></span>Light band</div>
+  <div class="legend-item"><span class="dot" style="background:var(--medium)"></span>Medium band</div>
+  <div class="legend-item"><span class="dot" style="background:var(--heavy)"></span>Heavy band</div>
+  <div class="legend-item"><span class="dot" style="background:var(--rest)"></span>Rest</div>
+  <button id="resetWeekBtn" class="reset-week-btn" data-state="idle">Reset week</button>
+</div>
+
+<div class="week-strip" id="weekStrip"></div>
+<div id="dayPanel"></div>
+
+<div id="restTimer" class="rest-timer">
+  <span class="rest-timer-text">Rest — 0:00</span>
+  <span class="rest-timer-skip">Skip</span>
+</div>
+
+
+<div class="wrap">
+  <div class="notes">
+    <h3>Training with bands</h3>
+    <ul>
+      <li><b>Chase the burn, not the number.</b> Bands don't max out like dumbbells — lean into higher reps (12–20+) rather than trying to hit a fixed weight.</li>
+      <li><b>Slow the eccentric.</b> A 3–4 second lowering phase keeps tension on the muscle since resistance drops near the start of each rep.</li>
+      <li><b>Keep 2–3 resistance levels on hand.</b> Light, medium, heavy lets you match the band to the exercise, and to stack bands as you get stronger.</li>
+      <li><b>A door anchor changes everything.</b> Rows, presses, face pulls, and pull-aparts all get easier to load well with one.</li>
+    </ul>
+  </div>
+</div>
+
+<footer>7-day view · Upper A / Lower A / Upper B / Lower B</footer>
+
+<script>
+const DAYS = [
+  {dow:'Mon', tag:'Upper A', type:'train', move:'upper', focus:'Push · Pull · Shoulders · Arms',
+    exercises:[
+      {name:'Push-Ups', sets:'4 × 12–15', tension:0, type:'compound', note:'Too easy? Loop a band across your upper back for extra resistance. Too hard? Elevate your hands on a chair or counter.'},
+      {name:'Band Chest Fly', sets:'3 × 12–15', tension:2, type:'isolation'},
+      {name:'Band Row', sets:'4 × 12–15', tension:3, type:'compound'},
+      {name:'Band Overhead Press', sets:'3 × 12–15', tension:2, type:'compound'},
+      {name:'Band Lateral Raise', sets:'3 × 15–20', tension:1, type:'isolation'},
+      {name:'Band Bicep Curl', sets:'3 × 12–15', tension:1, type:'isolation'},
+      {name:'Band Tricep Pushdown', sets:'3 × 12–15', tension:2, type:'isolation'},
+    ]},
+  {dow:'Tue', tag:'Lower A', type:'train', move:'lower', focus:'Quads · Hamstrings · Glutes · Calves',
+    exercises:[
+      {name:'Band Squat', sets:'4 × 15–20', tension:3, type:'compound'},
+      {name:'Band Romanian Deadlift', sets:'4 × 15–20', tension:3, type:'compound'},
+      {name:'Walking Lunges (band around thighs)', sets:'3 × 12–15 /leg', tension:2, type:'compound'},
+      {name:'Band Leg Curl', sets:'3 × 15–20', tension:2, type:'isolation'},
+      {name:'Single-Leg Calf Raise', sets:'3 × 15–20 /leg', tension:0, type:'isolation', note:'Stand on a step for full range of motion. Add a band around the working knee once bodyweight feels light.'},
+      {name:'Plank', sets:'3 × 30–45 sec', tension:0, type:'isolation', section:'Core & Rotation'},
+      {name:'Band Pallof Press', sets:'3 × 10 /side', tension:2, type:'isolation'},
+    ], balance:true},
+  {dow:'Wed', tag:'Rest', type:'rest', focus:''},
+  {dow:'Thu', tag:'Upper B', type:'train', move:'upper', focus:'Push · Pull · Shoulders · Arms',
+    exercises:[
+      {name:'Band Incline Press', sets:'4 × 12–15', tension:3, type:'compound'},
+      {name:'Band Low-to-High Fly', sets:'3 × 12–15', tension:2, type:'isolation'},
+      {name:'Band Pull-Apart / Face Pull', sets:'4 × 15–20', tension:1, type:'isolation'},
+      {name:'Band Arnold Press', sets:'3 × 12–15', tension:2, type:'compound'},
+      {name:'Band Rear Delt Fly', sets:'3 × 15–20', tension:1, type:'isolation'},
+      {name:'Band Hammer Curl', sets:'3 × 12–15', tension:2, type:'isolation'},
+      {name:'Band Overhead Tricep Extension', sets:'3 × 12–15', tension:2, type:'isolation'},
+    ]},
+  {dow:'Fri', tag:'Lower B', type:'train', move:'lower', focus:'Quads · Hamstrings · Glutes · Calves',
+    exercises:[
+      {name:'Band Bulgarian Split Squat', sets:'4 × 10–12 /leg', tension:3, type:'compound'},
+      {name:'Band Single-Leg RDL', sets:'3 × 12–15 /leg', tension:2, type:'compound'},
+      {name:'Band Hip Thrust', sets:'4 × 15–20', tension:3, type:'compound'},
+      {name:'Band Lateral Walks', sets:'3 × 15 /side', tension:1, type:'isolation'},
+      {name:'Single-Leg Calf Raise (bent knee)', sets:'3 × 15–20 /leg', tension:0, type:'isolation', note:'A slight knee bend shifts emphasis to the soleus — pairs with the straight-leg version on Lower A.'},
+      {name:'Dead Bug', sets:'3 × 12 /side', tension:0, type:'isolation', section:'Core & Rotation'},
+      {name:'Band Woodchop', sets:'3 × 10 /side', tension:2, type:'isolation'},
+    ], balance:true},
+  {dow:'Sat', tag:'Rest', type:'rest', focus:''},
+  {dow:'Sun', tag:'Rest', type:'rest', focus:''},
+];
+
+const WARMUPS = {
+  upper: [
+    {name:'Band Shoulder Dislocates', detail:'10 slow reps'},
+    {name:'Thoracic Rotations', detail:'8 /side'},
+    {name:'Band Pull-Aparts (light)', detail:'15 reps, just to open up'},
+    {name:'Wrist Circles', detail:'10 each direction'},
+  ],
+  lower: [
+    {name:'Hip Circles', detail:'8 /side'},
+    {name:'Leg Swings', detail:'10 /side, front-back and lateral'},
+    {name:'Ankle Rocks', detail:'10 /side'},
+    {name:'Cat-Cow', detail:'8 slow reps'},
+  ],
+};
+
+const BALANCE_DRILLS = [
+  {name:'Single-Leg Stand (eyes closed)', detail:'20–30 sec /side'},
+  {name:'Reactive Step Touches', detail:'10 /side, quick and controlled'},
+];
+
+const TENSION_COLOR = {1:'var(--light)', 2:'var(--medium)', 3:'var(--heavy)'};
+const TENSION_LABEL = {0:'Bodyweight', 1:'Light', 2:'Medium', 3:'Heavy'};
+const REST_SECONDS = {compound:75, isolation:40};
+
+let activeIndex = DAYS.findIndex(d => d.type === 'train');
+const todayDow = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date().getDay()];
+const todayIdx = DAYS.findIndex(d => d.dow === todayDow);
+if(todayIdx !== -1) activeIndex = todayIdx;
+
+const REPS_KEY = 'reps-log';
+let repsLog = {}; // "Mon-0-2" -> { "2026-06-29": 12, "2026-07-06": 11, ... }  (date -> reps completed)
+let editingKey = null; // logKey of the set currently showing an inline input
+
+const DOW_ORDER = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+
+function logKey(exKey, setIdx){ return exKey + '-' + setIdx; }
+
+function formatDateStr(date){
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function addDaysToStr(dateStr, delta){
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + delta);
+  return formatDateStr(d);
+}
+
+// The date, within the CURRENT calendar week (Mon–Sun), for a given day-of-week label.
+// This lets you log a day out of order (catching up) while still filing it under
+// the right week-slot, and makes "last week" comparisons line up correctly.
+function getDateForDow(dow){
+  const now = new Date();
+  const mondayOffset = (now.getDay() + 6) % 7; // Mon=0 ... Sun=6
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - mondayOffset);
+  const dowOffset = DOW_ORDER.indexOf(dow);
+  const target = new Date(monday);
+  target.setDate(monday.getDate() + dowOffset);
+  return formatDateStr(target);
+}
+
+function isDayCompleteThisWeek(d){
+  if(d.type !== 'train') return false;
+  const dateStr = getDateForDow(d.dow);
+  return d.exercises.every((ex, exIdx) => {
+    const setCount = getSetCount(ex);
+    const exKey = d.dow + '-' + exIdx;
+    for(let si = 0; si < setCount; si++){
+      const sk = logKey(exKey, si);
+      const entry = repsLog[sk];
+      if(!entry || typeof entry !== 'object' || entry[dateStr] === undefined) return false;
+    }
+    return true;
+  });
+}
+
+// Reads a date-keyed entry safely, treating any old (pre-history) flat-number
+// entries as empty rather than crashing.
+function readLogDate(lk, dateStr){
+  const entry = repsLog[lk];
+  if(!entry || typeof entry !== 'object') return undefined;
+  return entry[dateStr];
+}
+
+// Clears only this calendar week's logged dates across every exercise/set —
+// prior weeks' history (used for the "last week" comparisons) is left intact.
+function resetCurrentWeek(){
+  const weekDates = new Set(DOW_ORDER.map(getDateForDow));
+  Object.keys(repsLog).forEach(key => {
+    const entry = repsLog[key];
+    if(entry && typeof entry === 'object'){
+      weekDates.forEach(dateStr => { delete entry[dateStr]; });
+      if(Object.keys(entry).length === 0) delete repsLog[key];
+    }
+  });
+  saveRepsLog();
+  render();
+}
+
+function getSetCount(ex){
+  const match = ex.sets.match(/^(\d+)/);
+  return match ? parseInt(match[1], 10) : 3;
+}
+
+function getTargetReps(ex){
+  const nums = ex.sets.match(/\d+/g) || [];
+  return nums.length > 1 ? parseInt(nums[1], 10) : parseInt(nums[0], 10) || 10;
+}
+
+async function loadRepsLog(){
+  for(let attempt = 0; attempt < 2; attempt++){
+    try {
+      const res = await window.storage.get(REPS_KEY, false);
+      if(res && res.value) repsLog = JSON.parse(res.value);
+      return;
+    } catch(e){
+      if(attempt === 0){
+        await new Promise(r => setTimeout(r, 400));
+      } else {
+        repsLog = {};
+      }
+    }
+  }
+}
+
+async function saveRepsLog(){
+  const payload = JSON.stringify(repsLog);
+  for(let attempt = 0; attempt < 2; attempt++){
+    try {
+      await window.storage.set(REPS_KEY, payload, false);
+      return;
+    } catch(e){
+      if(attempt === 0){
+        await new Promise(r => setTimeout(r, 400));
+      } else {
+        console.warn('Reps log sync skipped this time — data still tracked for this session.');
+      }
+    }
+  }
+}
+
+let restInterval = null;
+let restEndAt = 0;
+function startRestTimer(seconds){
+  clearInterval(restInterval);
+  restEndAt = Date.now() + seconds * 1000;
+  const el = document.getElementById('restTimer');
+  el.classList.add('show');
+  tickRestTimer();
+  restInterval = setInterval(tickRestTimer, 250);
+}
+function tickRestTimer(){
+  const el = document.getElementById('restTimer');
+  const remaining = Math.ceil((restEndAt - Date.now()) / 1000);
+  if(remaining <= 0){
+    clearInterval(restInterval);
+    el.classList.remove('show');
+    return;
+  }
+  const m = Math.floor(remaining / 60);
+  const s = remaining % 60;
+  el.querySelector('.rest-timer-text').textContent = `Rest — ${m}:${s.toString().padStart(2,'0')}`;
+}
+function stopRestTimer(){
+  clearInterval(restInterval);
+  document.getElementById('restTimer').classList.remove('show');
+}
+
+function renderStrip(){
+  const strip = document.getElementById('weekStrip');
+  strip.innerHTML = '';
+  DAYS.forEach((d, i) => {
+    const pill = document.createElement('div');
+    const completed = isDayCompleteThisWeek(d);
+    pill.className = 'day-pill' + (i === activeIndex ? ' active' : '') + (d.dow === todayDow ? ' is-today' : '');
+    const barColor = d.type === 'rest' ? 'var(--rest)' : (completed ? 'var(--done)' : 'var(--text-faint)');
+    const checkHtml = completed ? `
+      <div class="pill-check">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5L6.5 12L13 4.5" stroke="#18191b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+    ` : '';
+    pill.innerHTML = `
+      ${checkHtml}
+      <div class="dow">${d.dow}</div>
+      <div class="tag">${d.tag}</div>
+      <div class="bar" style="background:${barColor}"></div>
+    `;
+    pill.addEventListener('click', () => { activeIndex = i; render(); });
+    strip.appendChild(pill);
+  });
+}
+
+function renderPanel(){
+  const panel = document.getElementById('dayPanel');
+  const d = DAYS[activeIndex];
+
+  if(d.type === 'rest'){
+    panel.innerHTML = `
+      <div class="rest-panel">
+        <div class="rest-word">Rest</div>
+        <p>No band work scheduled. Light walking or stretching is fine — let the muscles you trained recover.</p>
+      </div>
+    `;
+    return;
+  }
+
+  const thisDateStr = getDateForDow(d.dow);
+  const lastDateStr = addDaysToStr(thisDateStr, -7);
+
+  let exercisesHtml = d.exercises.map((ex, i) => {
+    const key = d.dow + '-' + i;
+    const setCount = getSetCount(ex);
+    const repsForSets = Array.from({length: setCount}, (_, si) => {
+      const sk = logKey(key, si);
+      return readLogDate(sk, thisDateStr);
+    });
+    const lastWeekForSets = Array.from({length: setCount}, (_, si) => {
+      const sk = logKey(key, si);
+      return readLogDate(sk, lastDateStr);
+    });
+    const isDone = repsForSets.every(r => r !== undefined);
+    const isBodyweight = ex.tension === 0;
+    const bars = [1,2,3].map(lvl => {
+      const on = !isBodyweight && lvl <= ex.tension;
+      const cls = isBodyweight ? 'dashed' : (on ? 'on' : '');
+      return `<i class="${cls}" style="--seg-color:${TENSION_COLOR[ex.tension] || 'transparent'}"></i>`;
+    }).join('');
+    const noteHtml = ex.note ? `<div class="ex-note">${ex.note}</div>` : '';
+    const dotsHtml = repsForSets.map((reps, si) => {
+      const filled = reps !== undefined;
+      const lk = logKey(key, si);
+      if(lk === editingKey){
+        const defaultVal = filled ? reps : (lastWeekForSets[si] !== undefined ? lastWeekForSets[si] : getTargetReps(ex));
+        return `<input class="set-input" type="number" inputmode="numeric" min="0" data-key="${key}" data-idx="${si}" value="${defaultVal}">`;
+      }
+      return `<button class="set-dot ${filled ? 'filled' : ''}" data-key="${key}" data-idx="${si}">${filled ? reps : si + 1}</button>`;
+    }).join('');
+    const hasAnyLog = repsForSets.some(r => r !== undefined);
+    const hasLastWeek = lastWeekForSets.some(r => r !== undefined);
+    const summaryHtml = hasAnyLog
+      ? `<div class="reps-summary">${repsForSets.map(r => r !== undefined ? r : '—').join(' · ')}</div>`
+      : '';
+    const lastWeekHtml = hasLastWeek
+      ? `<div class="reps-summary reps-summary-last">Last week — ${lastWeekForSets.map(r => r !== undefined ? r : '—').join(' · ')}</div>`
+      : '';
+    const sectionHtml = ex.section ? `<div class="section-divider">${ex.section}</div>` : '';
+    return `
+      ${sectionHtml}
+      <div class="exercise ${isDone ? 'done' : ''}" data-key="${key}">
+        <div class="ex-top">
+          <div class="ex-info">
+            <div class="ex-name-row">
+              <div class="ex-name">${ex.name}</div>
+              <button class="video-btn" title="Watch form video" data-video="${ex.name}">
+                <svg viewBox="0 0 10 10" fill="currentColor"><path d="M1 0.5L9 5L1 9.5V0.5Z"/></svg>
+              </button>
+            </div>
+            <div class="ex-meta">
+              <span class="ex-sets">${ex.sets}</span>
+              <span class="tension">
+                <span class="tension-label">${TENSION_LABEL[ex.tension]}</span>
+                <span class="tension-bars">${bars}</span>
+              </span>
+            </div>
+            ${noteHtml}
+            <div class="set-row">
+              <span class="set-row-label">Reps</span>
+              <div class="set-dots">${dotsHtml}</div>
+            </div>
+            ${lastWeekHtml}
+            ${summaryHtml}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  const warmupHtml = WARMUPS[d.move] ? `
+    <div class="mobility-block">
+      <div class="mobility-tag">Warm-up</div>
+      <div class="mobility-list">
+        ${WARMUPS[d.move].map(w => `
+          <div class="mobility-item">
+            <span class="mobility-name">${w.name}</span>
+            <span class="mobility-detail">${w.detail}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  ` : '';
+
+  const balanceHtml = d.balance ? `
+    <div class="mobility-block">
+      <div class="mobility-tag">Balance</div>
+      <div class="mobility-list">
+        ${BALANCE_DRILLS.map(w => `
+          <div class="mobility-item">
+            <span class="mobility-name">${w.name}</span>
+            <span class="mobility-detail">${w.detail}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  ` : '';
+
+  panel.innerHTML = `
+    <div class="day-panel">
+      <div class="day-head">
+        <div>
+          <div class="day-title">${d.tag}</div>
+          <div class="day-sub">${d.focus}</div>
+        </div>
+      </div>
+      ${warmupHtml}
+      ${exercisesHtml}
+      ${balanceHtml}
+    </div>
+  `;
+
+  panel.querySelectorAll('.video-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const query = encodeURIComponent(btn.dataset.video + ' proper form tutorial');
+      window.open('https://www.youtube.com/results?search_query=' + query, '_blank', 'noopener,noreferrer');
+    });
+  });
+
+  panel.querySelectorAll('.set-dot').forEach(dot => {
+    dot.addEventListener('click', (e) => {
+      e.stopPropagation();
+      editingKey = logKey(dot.dataset.key, parseInt(dot.dataset.idx, 10));
+      renderPanel();
+    });
+  });
+
+  const input = panel.querySelector('.set-input');
+  if(input){
+    input.focus();
+    input.select();
+
+    const commit = () => {
+      const key = input.dataset.key;
+      const idx = parseInt(input.dataset.idx, 10);
+      const exIndex = parseInt(key.split('-').pop(), 10);
+      const ex = d.exercises[exIndex];
+      const lk = logKey(key, idx);
+      const dateStr = getDateForDow(d.dow);
+      const existing = readLogDate(lk, dateStr);
+      const trimmed = input.value.trim();
+
+      if(trimmed === ''){
+        if(repsLog[lk] && typeof repsLog[lk] === 'object') delete repsLog[lk][dateStr];
+      } else {
+        const n = parseInt(trimmed, 10);
+        if(!isNaN(n) && n >= 0){
+          const wasLogged = existing !== undefined;
+          if(!repsLog[lk] || typeof repsLog[lk] !== 'object') repsLog[lk] = {};
+          repsLog[lk][dateStr] = n;
+          if(!wasLogged){
+            startRestTimer(REST_SECONDS[ex.type] || 60);
+          }
+        }
+      }
+      editingKey = null;
+      saveRepsLog();
+      renderPanel();
+    };
+
+    let cancelled = false;
+    input.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if(e.key === 'Enter'){ input.blur(); }
+      if(e.key === 'Escape'){ cancelled = true; editingKey = null; renderPanel(); }
+    });
+    input.addEventListener('blur', () => { if(!cancelled) commit(); });
+    input.addEventListener('click', (e) => e.stopPropagation());
+  }
+}
+
+function render(){
+  renderStrip();
+  renderPanel();
+}
+
+document.getElementById('restTimer').addEventListener('click', stopRestTimer);
+
+let resetConfirmTimeout = null;
+const resetBtn = document.getElementById('resetWeekBtn');
+resetBtn.addEventListener('click', () => {
+  if(resetBtn.dataset.state === 'confirm'){
+    clearTimeout(resetConfirmTimeout);
+    resetCurrentWeek();
+    resetBtn.classList.remove('confirming');
+    resetBtn.classList.add('success');
+    resetBtn.textContent = 'Week reset';
+    resetBtn.dataset.state = 'done';
+    setTimeout(() => {
+      resetBtn.classList.remove('success');
+      resetBtn.textContent = 'Reset week';
+      resetBtn.dataset.state = 'idle';
+    }, 1500);
+  } else {
+    resetBtn.textContent = 'Tap to confirm';
+    resetBtn.dataset.state = 'confirm';
+    resetBtn.classList.add('confirming');
+    resetConfirmTimeout = setTimeout(() => {
+      resetBtn.textContent = 'Reset week';
+      resetBtn.dataset.state = 'idle';
+      resetBtn.classList.remove('confirming');
+    }, 3000);
+  }
+});
+
+loadRepsLog().then(render);
+</script>
+
+</body>
+</html>
