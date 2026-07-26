@@ -583,6 +583,14 @@
   }
 
   /* WORKOUT COMPLETE TOAST */
+  .complete-flash{
+    position:fixed;
+    inset:0;
+    background:radial-gradient(ellipse 900px 500px at 50% 15%, rgba(var(--glow-rgb),.3), transparent 65%);
+    opacity:0;
+    pointer-events:none;
+    z-index:105;
+  }
   .complete-toast{
     position:fixed;
     top:78px;
@@ -668,7 +676,11 @@
     stroke-linecap:round;
     stroke-dasharray:81.68;
     stroke-dashoffset:0;
+    transition:stroke .25s;
   }
+  .rest-timer.urgent .rest-ring-fg{stroke:var(--heavy);}
+  .rest-timer.urgent .rest-timer-text{color:var(--heavy);transition:color .25s;}
+  .rest-timer.urgent{border-color:var(--heavy);}
   .rest-timer-text{
     font-family:'IBM Plex Mono',monospace;
     font-size:13px;
@@ -754,6 +766,7 @@
   <span class="rest-timer-skip">Skip</span>
 </div>
 
+<div id="completeFlash" class="complete-flash"></div>
 <div id="completeToast" class="complete-toast"></div>
 
 
@@ -778,6 +791,7 @@
 // end state when reduced motion is preferred. The rest-timer ring is exempt —
 // it conveys real elapsed time, not decoration.
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const GLOW_RGB = '255,135,0'; // keep in sync with --glow-rgb in :root
 
 const DAYS = [
   {dow:'Mon', tag:'Upper A', type:'train', move:'upper', focus:'Push · Pull · Shoulders · Arms',
@@ -936,6 +950,18 @@ function renderDeloadBanner(){
     try { localStorage.setItem('deload-dismissed-week', String(wk)); } catch(e){}
     el.innerHTML = '';
   });
+
+  if(window.gsap){
+    const banner = el.querySelector('.deload-banner');
+    if(prefersReducedMotion){
+      gsap.set(banner, {opacity: 1, y: 0});
+    } else {
+      gsap.fromTo(banner,
+        {opacity: 0, y: -20, scale: 0.97},
+        {opacity: 1, y: 0, scale: 1, duration: 0.5, ease: 'back.out(1.6)'}
+      );
+    }
+  }
 }
 
 function isDayCompleteThisWeek(d){
@@ -1079,10 +1105,14 @@ function toggleMobilityItem(mkey, dateStr){
 let restInterval = null;
 let restEndAt = 0;
 const REST_RING_CIRCUMFERENCE = 81.68;
+let ringUrgentActive = false;
 function startRestTimer(seconds){
   clearInterval(restInterval);
   restEndAt = Date.now() + seconds * 1000;
   const el = document.getElementById('restTimer');
+  ringUrgentActive = false;
+  el.classList.remove('urgent');
+  if(window.gsap){ gsap.killTweensOf(el); gsap.set(el, {clearProps: 'transform,scale'}); }
   el.classList.add('show');
   tickRestTimer();
   restInterval = setInterval(tickRestTimer, 250);
@@ -1101,18 +1131,33 @@ function tickRestTimer(){
   const remaining = Math.ceil((restEndAt - Date.now()) / 1000);
   if(remaining <= 0){
     clearInterval(restInterval);
-    el.classList.remove('show');
+    el.classList.remove('show', 'urgent');
+    ringUrgentActive = false;
+    if(window.gsap){ gsap.killTweensOf(el); gsap.set(el, {clearProps: 'transform,scale'}); }
     return;
   }
   const m = Math.floor(remaining / 60);
   const s = remaining % 60;
   el.querySelector('.rest-timer-text').textContent = `Rest — ${m}:${s.toString().padStart(2,'0')}`;
+
+  // Last 5 seconds: ring and text shift to red, pill pulses gently — a real
+  // urgency cue, still tied to actual time remaining.
+  if(remaining <= 5 && !ringUrgentActive){
+    ringUrgentActive = true;
+    el.classList.add('urgent');
+    if(window.gsap && !prefersReducedMotion){
+      gsap.to(el, {xPercent: -50, scale: 1.06, duration: 0.4, yoyo: true, repeat: -1, ease: 'sine.inOut'});
+    }
+  }
 }
 function stopRestTimer(){
   clearInterval(restInterval);
-  document.getElementById('restTimer').classList.remove('show');
+  const el = document.getElementById('restTimer');
+  el.classList.remove('show', 'urgent');
+  ringUrgentActive = false;
   const ring = document.getElementById('restRingFg');
   if(ring && window.gsap) gsap.killTweensOf(ring);
+  if(window.gsap){ gsap.killTweensOf(el); gsap.set(el, {clearProps: 'transform,scale'}); }
 }
 
 let saveStatusTimeout = null;
@@ -1138,19 +1183,23 @@ function showCompletionToast(tag){
 
   if(window.gsap){
     const flag = el.querySelector('.checkered-flag');
+    const flashEl = document.getElementById('completeFlash');
     if(prefersReducedMotion){
       gsap.set(el, {xPercent: -50, scale: 1, y: 0});
     } else {
       gsap.fromTo(el,
-        {xPercent: -50, scale: 0.85, y: -16},
-        {xPercent: -50, scale: 1, y: 0, duration: 0.55, ease: 'back.out(1.9)'}
+        {xPercent: -50, scale: 0.65, y: -28},
+        {xPercent: -50, scale: 1, y: 0, duration: 0.65, ease: 'back.out(2.6)'}
       );
       if(flag){
         gsap.fromTo(flag,
-          {rotate: -18},
-          {rotate: 12, duration: 0.16, repeat: 5, yoyo: true, ease: 'sine.inOut', delay: 0.2,
+          {rotate: -22},
+          {rotate: 16, duration: 0.14, repeat: 8, yoyo: true, ease: 'sine.inOut', delay: 0.25,
             onComplete: () => gsap.set(flag, {rotate: 0})}
         );
+      }
+      if(flashEl){
+        gsap.fromTo(flashEl, {opacity: 0}, {opacity: 1, duration: 0.18, yoyo: true, repeat: 1, ease: 'power1.inOut'});
       }
     }
   }
@@ -1197,6 +1246,20 @@ function renderStrip(){
     });
     strip.appendChild(pill);
   });
+
+  if(window.gsap){
+    const activePill = strip.querySelector('.day-pill.active');
+    if(activePill){
+      if(prefersReducedMotion){
+        gsap.set(activePill, {scale: 1});
+      } else {
+        gsap.fromTo(activePill,
+          {scale: 0.85, boxShadow: `0 0 0 1px rgba(${GLOW_RGB},1), 0 0 26px rgba(${GLOW_RGB},.8)`},
+          {scale: 1, boxShadow: `0 0 0 1px rgba(${GLOW_RGB},1), 0 0 18px rgba(${GLOW_RGB},.55)`, duration: 0.4, ease: 'back.out(2.4)'}
+        );
+      }
+    }
+  }
 }
 
 function renderPanel(animate){
@@ -1543,26 +1606,49 @@ function popSetDot(key, idx){
   const dot = document.querySelector(`.set-dot[data-key="${key}"][data-idx="${idx}"]`);
   if(!dot) return;
   if(prefersReducedMotion){ gsap.set(dot, {scale: 1}); return; }
-  gsap.fromTo(dot, {scale: 0.5}, {scale: 1, duration: 0.45, ease: 'elastic.out(1, 0.5)'});
+  gsap.fromTo(dot,
+    {scale: 0.35, boxShadow: `0 0 28px rgba(${GLOW_RGB},1)`},
+    {scale: 1, boxShadow: `0 0 10px rgba(${GLOW_RGB},.65)`, duration: 0.65, ease: 'elastic.out(1.15, 0.32)'}
+  );
 }
 
 function animateCardsIn(panel){
   if(!window.gsap) return;
   const cards = panel.querySelectorAll('.exercise, .mobility-block');
   const bars = panel.querySelectorAll('.tension-bars i.on');
+  const badges = panel.querySelectorAll('.progression-badge');
+
   if(prefersReducedMotion){
-    gsap.set(cards, {opacity: 1, y: 0});
+    gsap.set(cards, {opacity: 1, y: 0, scale: 1});
     gsap.set(bars, {scaleY: 1});
+    gsap.set(badges, {opacity: 1, x: 0});
     return;
   }
+
   gsap.fromTo(cards,
-    {opacity: 0, y: 14},
-    {opacity: 1, y: 0, duration: 0.4, stagger: 0.05, ease: 'power2.out'}
+    {opacity: 0, y: 28, scale: 0.94},
+    {opacity: 1, y: 0, scale: 1, duration: 0.5, stagger: 0.07, ease: 'back.out(1.4)'}
   );
+
+  // Bars overshoot past full height like a rev counter, then a quick
+  // brightness flash at the top before settling — the "redline" moment.
   gsap.fromTo(bars,
     {scaleY: 0},
-    {scaleY: 1, duration: 0.35, stagger: 0.04, delay: 0.1, ease: 'power2.out', transformOrigin: 'bottom'}
+    {scaleY: 1, duration: 0.45, stagger: 0.06, delay: 0.15, ease: 'back.out(2.5)', transformOrigin: 'bottom'}
   );
+  bars.forEach((bar, i) => {
+    gsap.fromTo(bar,
+      {filter: 'brightness(1)'},
+      {filter: 'brightness(1.9)', duration: 0.12, delay: 0.15 + i * 0.06 + 0.3, yoyo: true, repeat: 1, ease: 'power1.inOut'}
+    );
+  });
+
+  if(badges.length){
+    gsap.fromTo(badges,
+      {opacity: 0, x: -14},
+      {opacity: 1, x: 0, duration: 0.4, delay: 0.3, stagger: 0.05, ease: 'power2.out'}
+    );
+  }
 }
 
 function render(){
@@ -1591,6 +1677,10 @@ resetBtn.addEventListener('click', () => {
     resetBtn.textContent = 'Tap to confirm';
     resetBtn.dataset.state = 'confirm';
     resetBtn.classList.add('confirming');
+    if(window.gsap && !prefersReducedMotion){
+      gsap.fromTo(resetBtn, {x: 0}, {x: 6, duration: 0.06, repeat: 5, yoyo: true, ease: 'power1.inOut',
+        onComplete: () => gsap.set(resetBtn, {x: 0})});
+    }
     resetConfirmTimeout = setTimeout(() => {
       resetBtn.textContent = 'Reset week';
       resetBtn.dataset.state = 'idle';
