@@ -18,13 +18,13 @@
     --text-dim:#96989a;
     --text-faint:#5f6163;
     --light:#ffcc33;
-    --medium:#ff8a3d;
+    --medium:#ff6b35;
     --heavy:#ff3b5c;
     --rest:#b565f5;
     --rest-rgb:181,101,245;
     --done:#4ade80;
-    --glow:#2fe0ff;
-    --glow-rgb:47,224,255;
+    --glow:#ff8700;
+    --glow-rgb:255,135,0;
     --shadow-sm:0 2px 6px rgba(0,0,0,.3);
     --shadow-md:0 4px 14px rgba(0,0,0,.35);
     --shadow-lg:0 8px 24px rgba(0,0,0,.45);
@@ -70,6 +70,16 @@
   /* HEADER */
   header{
     padding:32px 18px 20px;
+  }
+  .livery-stripe{
+    height:13px;
+    background:repeating-linear-gradient(
+      45deg,
+      var(--glow) 0px, var(--glow) 40px,
+      var(--bg) 40px, var(--bg) 48px,
+      var(--text) 48px, var(--text) 52px,
+      var(--bg) 52px, var(--bg) 90px
+    );
     border-bottom:1px solid var(--line);
   }
   .eyebrow{
@@ -561,6 +571,7 @@
     letter-spacing:.04em;
     color:var(--text-faint);
   }
+  .tm-bracket{color:var(--glow);font-weight:600;}
   .reps-summary-last{
     margin-top:6px;
     margin-bottom:-2px;
@@ -595,10 +606,25 @@
     z-index:110;
     transition:opacity .3s, transform .3s;
     white-space:nowrap;
+    display:flex;
+    align-items:center;
+    gap:9px;
   }
   .complete-toast.show{
     opacity:1;
     transform:translate(-50%, 0);
+  }
+  .checkered-flag{
+    display:inline-block;
+    width:16px;height:16px;
+    flex:0 0 auto;
+    border-radius:2px;
+    border:1px solid rgba(255,255,255,.5);
+    background-image:
+      linear-gradient(45deg, #0a0a0a 25%, transparent 25%, transparent 75%, #0a0a0a 75%, #0a0a0a),
+      linear-gradient(45deg, #0a0a0a 25%, #f2f2f2 25%, #f2f2f2 75%, #0a0a0a 75%, #0a0a0a);
+    background-size:8px 8px;
+    background-position:0 0, 4px 4px;
   }
 
   /* REST TIMER */
@@ -690,6 +716,7 @@
   <h1>Upper &amp; Lower<br>Split</h1>
   <p>Two upper days, two lower days, resistance bands only. Built for 2× weekly frequency per muscle group. Shift the days around to fit your week — the order matters more than the calendar.</p>
 </header>
+<div class="livery-stripe"></div>
 
 <div class="legend">
   <div class="legend-item"><span class="dot" style="background:var(--light)"></span>Light band</div>
@@ -1070,7 +1097,7 @@ let completeToastTimeout = null;
 function showCompletionToast(tag){
   const el = document.getElementById('completeToast');
   if(!el) return;
-  el.textContent = `${tag} complete 💪`;
+  el.innerHTML = `<span class="checkered-flag"></span>${tag} complete`;
   el.classList.add('show');
   clearTimeout(completeToastTimeout);
   completeToastTimeout = setTimeout(() => el.classList.remove('show'), 2600);
@@ -1184,9 +1211,12 @@ function renderPanel(){
       return `<button class="set-dot ${filled ? 'filled' : ''}" data-key="${key}" data-idx="${si}">${filled ? reps : si + 1}</button>`;
     }).join('');
     const hasAnyLog = repsForSets.some(r => r !== undefined);
-    const formatRow = (reps, rpe) => reps !== undefined ? (rpe !== undefined ? `${reps}@${rpe}` : `${reps}`) : '—';
+    const formatRow = (reps, rpe) => {
+      const val = reps !== undefined ? (rpe !== undefined ? `${reps}@${rpe}` : `${reps}`) : '–';
+      return `<span class="tm-bracket">[</span>${val}<span class="tm-bracket">]</span>`;
+    };
     const summaryHtml = hasAnyLog
-      ? `<div class="reps-summary">${repsForSets.map((r, si) => formatRow(r, rpeForSets[si])).join(' · ')}</div>`
+      ? `<div class="reps-summary">${repsForSets.map((r, si) => formatRow(r, rpeForSets[si])).join(' ')}</div>`
       : '';
     // Oldest of the 3 first, most recent last — reads top-to-bottom as a trend
     // leading into today's live row.
@@ -1195,7 +1225,7 @@ function renderPanel(){
       const label = posFromEnd === 0 ? 'Last time' : `${posFromEnd + 1} sessions ago`;
       const vals = Array.from({length: setCount}, (_, si) => readLogDate(logKey(key, si), dt));
       const rpes = Array.from({length: setCount}, (_, si) => readRpeDate(logKey(key, si), dt));
-      return `<div class="reps-summary reps-summary-last">${label} · ${formatDisplayDate(dt)} — ${vals.map((v, si) => formatRow(v, rpes[si])).join(' · ')}</div>`;
+      return `<div class="reps-summary reps-summary-last">${label} · ${formatDisplayDate(dt)} — ${vals.map((v, si) => formatRow(v, rpes[si])).join(' ')}</div>`;
     }).join('');
     // Progression prompt: topped out the rep range on every set for the two
     // most recent logged sessions in a row.
