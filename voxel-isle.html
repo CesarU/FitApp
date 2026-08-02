@@ -23,14 +23,15 @@
   #joystickZone { left: 0; width: 46%; }
   #lookZone { right: 0; width: 54%; }
 
-  #joystickBase {
-    position: absolute; left: calc(7vw + env(safe-area-inset-left));
-    bottom: calc(11vh + env(safe-area-inset-bottom));
+  #joystickBase, #lookJoystickBase {
+    position: absolute; bottom: calc(11vh + env(safe-area-inset-bottom));
     width: 112px; height: 112px; border-radius: 50%;
     background: rgba(255,255,255,0.15); border: 2px solid rgba(255,255,255,0.5);
     pointer-events: none;
   }
-  #joystickKnob {
+  #joystickBase { left: calc(7vw + env(safe-area-inset-left)); }
+  #lookJoystickBase { right: calc(7vw + env(safe-area-inset-right)); }
+  #joystickKnob, #lookJoystickKnob {
     position: absolute; left: 50%; top: 50%; width: 48px; height: 48px;
     border-radius: 50%; background: rgba(255,255,255,0.55);
     border: 2px solid rgba(255,255,255,0.85);
@@ -46,15 +47,25 @@
     display: flex; align-items: center; justify-content: center;
     font-size: 22px; color: #fff; pointer-events: auto; z-index: 2;
   }
+  #flyDownBtn {
+    position: absolute; left: calc(7vw + env(safe-area-inset-left) + 128px);
+    bottom: calc(13vh + env(safe-area-inset-bottom) + 74px);
+    width: 62px; height: 62px; border-radius: 50%;
+    background: rgba(255,255,255,0.22); border: 2px solid rgba(255,255,255,0.6);
+    display: none; align-items: center; justify-content: center;
+    font-size: 22px; color: #fff; pointer-events: auto; z-index: 2;
+  }
+  #flyDownBtn.visible { display: flex; }
 
   #mineBtn, #placeBtn {
-    position: absolute; width: 68px; height: 68px; border-radius: 50%;
+    position: absolute; right: calc(7vw + env(safe-area-inset-right) + 128px);
+    width: 68px; height: 68px; border-radius: 50%;
     background: rgba(0,0,0,0.35); border: 2px solid rgba(255,255,255,0.65);
     display: flex; align-items: center; justify-content: center;
     font-size: 26px; pointer-events: auto; z-index: 2; color:#fff;
   }
-  #mineBtn { right: calc(6vw + env(safe-area-inset-right)); bottom: calc(21vh + env(safe-area-inset-bottom)); }
-  #placeBtn { right: calc(6vw + env(safe-area-inset-right) + 84px); bottom: calc(13vh + env(safe-area-inset-bottom)); }
+  #mineBtn { bottom: calc(13vh + env(safe-area-inset-bottom)); }
+  #placeBtn { bottom: calc(13vh + env(safe-area-inset-bottom) + 74px); }
 
   #crosshair {
     position: absolute; left: 50%; top: 50%; width: 22px; height: 22px;
@@ -129,7 +140,9 @@
   <div id="joystickZone" class="zone"></div>
   <div id="lookZone" class="zone"></div>
   <div id="joystickBase"><div id="joystickKnob"></div></div>
+  <div id="lookJoystickBase"><div id="lookJoystickKnob"></div></div>
   <div id="jumpBtn">&#8593;</div>
+  <div id="flyDownBtn">&#8595;</div>
   <div id="mineBtn">&#9935;</div>
   <div id="placeBtn">&#9634;</div>
   <div id="crosshair"></div>
@@ -140,6 +153,7 @@
 <div id="menuPanel" class="hidden">
   <div id="menuCard">
     <h2>World</h2>
+    <button id="creativeToggleBtn" class="menuOption">&#127959;&#65039; Creative mode: OFF</button>
     <button id="saveBtn" class="menuOption">&#128190; Save</button>
     <button id="exportBtn" class="menuOption">&#11015;&#65039; Export to file</button>
     <button id="importBtn" class="menuOption">&#11014;&#65039; Import from file</button>
@@ -180,7 +194,6 @@
   var GRAVITY = 24;
   var JUMP_V = 8.4;
   var SPEED = 4.3;
-  var LOOK_SENS = 0.0032;
   var INSTANCE_CAP = 9000;
   var SAVE_KEY = "voxelIsleSave_v1";
 
@@ -859,6 +872,8 @@
   }
 
   var jumpHeld = false;
+  var descendHeld = false;
+  var creativeMode = false;
   function isPlayerInWater() {
     return blocks.get(key(Math.floor(player.x), Math.floor(player.y + 0.9), Math.floor(player.z))) === "water";
   }
@@ -876,14 +891,23 @@
     var jy = clamp(joyY + ky(), -1, 1);
     var joyMag = Math.min(1, Math.hypot(joyX, joyY));
     var sprinting = joyMag > 0.85 || !!keys.ShiftLeft || !!keys.ShiftRight;
-    var speed = (inWater ? SPEED * 0.6 : SPEED) * (sprinting ? 1.5 : 1);
+    var speed = (inWater ? SPEED * 0.6 : SPEED) * (sprinting ? 1.5 : 1) * (creativeMode ? 1.3 : 1);
     var mx = (right.x * jx + fwd.x * jy) * speed * dt;
     var mz = (right.z * jx + fwd.z * jy) * speed * dt;
 
     if (mx !== 0 && !collidesBox(player.x + mx, player.y, player.z)) player.x += mx;
     if (mz !== 0 && !collidesBox(player.x, player.y, player.z + mz)) player.z += mz;
 
-    if (inWater) {
+    if (creativeMode) {
+      var wantsUp2 = jumpHeld || !!keys.Space;
+      var wantsDown2 = descendHeld || !!keys.ControlLeft || !!keys.ControlRight;
+      var flySpeed = 4.6;
+      var vy2 = wantsUp2 ? flySpeed : (wantsDown2 ? -flySpeed : 0);
+      var ny2 = player.y + vy2 * dt;
+      if (!collidesBox(player.x, ny2, player.z)) player.y = ny2;
+      player.vy = 0;
+      player.onGround = false;
+    } else if (inWater) {
       var wantsUp = jumpHeld || !!keys.Space;
       if (wantsUp) {
         player.vy += 14 * dt;
@@ -892,17 +916,25 @@
         player.vy -= 6 * dt;
         if (player.vy < -1.6) player.vy = -1.6;
       }
+      var ny = player.y + player.vy * dt;
+      if (collidesBox(player.x, ny, player.z)) {
+        if (player.vy < 0) player.onGround = true;
+        player.vy = 0;
+      } else {
+        player.y = ny;
+        player.onGround = false;
+      }
     } else {
       player.vy -= GRAVITY * dt;
       if (player.vy < -30) player.vy = -30;
-    }
-    var ny = player.y + player.vy * dt;
-    if (collidesBox(player.x, ny, player.z)) {
-      if (player.vy < 0) player.onGround = true;
-      player.vy = 0;
-    } else {
-      player.y = ny;
-      player.onGround = false;
+      var ny3 = player.y + player.vy * dt;
+      if (collidesBox(player.x, ny3, player.z)) {
+        if (player.vy < 0) player.onGround = true;
+        player.vy = 0;
+      } else {
+        player.y = ny3;
+        player.onGround = false;
+      }
     }
 
     if (player.y < -25) {
@@ -916,6 +948,7 @@
   function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 
   function tryJump() {
+    if (creativeMode) return; // ascending is handled by the hold-to-rise flight controls instead
     if (player.onGround) {
       player.vy = JUMP_V;
       player.onGround = false;
@@ -977,13 +1010,13 @@
   }
   function doPlace() {
     if (!currentTarget || !currentTarget.place) return;
-    if ((inventory[selectedType] || 0) <= 0) { playTone(90, 0.06, "sawtooth"); return; }
+    if (!creativeMode && (inventory[selectedType] || 0) <= 0) { playTone(90, 0.06, "sawtooth"); return; }
     var p = currentTarget.place;
     if (!inWorldBounds(p) || insidePlayer(p)) return;
     var k = key(p.x, p.y, p.z);
     if (blocks.has(k)) return;
     blocks.set(k, selectedType);
-    inventory[selectedType]--;
+    if (!creativeMode) inventory[selectedType]--;
     updateHotbarUI();
     rebuildMeshes();
     if (selectedType === "torch") createTorch(p.x, p.y, p.z);
@@ -1049,33 +1082,61 @@
   joystickZone.addEventListener("pointerup", endJoystick);
   joystickZone.addEventListener("pointercancel", endJoystick);
 
-  // ---------- input: look ----------
-  var lookPointerId = null, lastLookX = 0, lastLookY = 0;
+  // ---------- input: look joystick ----------
+  var lookJoyX = 0, lookJoyY = 0, lookPointerId = null;
   var lookZone = document.getElementById("lookZone");
+  var lookJoystickBase = document.getElementById("lookJoystickBase");
+  var lookJoystickKnob = document.getElementById("lookJoystickKnob");
+
+  function updateLookJoystick(clientX, clientY) {
+    var rect = lookJoystickBase.getBoundingClientRect();
+    var originX = rect.left + rect.width / 2, originY = rect.top + rect.height / 2;
+    var maxR = 44;
+    var dx = clientX - originX, dz = clientY - originY;
+    var dist = Math.hypot(dx, dz);
+    if (dist > maxR) { dx = dx / dist * maxR; dz = dz / dist * maxR; }
+    lookJoystickKnob.style.transform = "translate(calc(-50% + " + dx + "px), calc(-50% + " + dz + "px))";
+    lookJoyX = dx / maxR;
+    lookJoyY = dz / maxR;
+  }
   lookZone.addEventListener("pointerdown", function (e) {
     if (lookPointerId !== null) return;
     lookPointerId = e.pointerId;
-    lastLookX = e.clientX; lastLookY = e.clientY;
     lookZone.setPointerCapture(e.pointerId);
+    updateLookJoystick(e.clientX, e.clientY);
   });
   lookZone.addEventListener("pointermove", function (e) {
     if (e.pointerId !== lookPointerId) return;
-    var dx = e.clientX - lastLookX, dy = e.clientY - lastLookY;
-    lastLookX = e.clientX; lastLookY = e.clientY;
-    player.yaw -= dx * LOOK_SENS;
-    player.pitch -= dy * LOOK_SENS;
+    updateLookJoystick(e.clientX, e.clientY);
+  });
+  function endLookJoystick(e) {
+    if (e.pointerId !== lookPointerId) return;
+    lookPointerId = null; lookJoyX = 0; lookJoyY = 0;
+    lookJoystickKnob.style.transform = "translate(-50%, -50%)";
+  }
+  lookZone.addEventListener("pointerup", endLookJoystick);
+  lookZone.addEventListener("pointercancel", endLookJoystick);
+
+  var LOOK_TURN_RATE = 2.6; // radians/sec at full stick deflection
+  function updateLook(dt) {
+    if (lookJoyX === 0 && lookJoyY === 0) return;
+    player.yaw -= lookJoyX * Math.abs(lookJoyX) * LOOK_TURN_RATE * dt;
+    player.pitch -= lookJoyY * Math.abs(lookJoyY) * LOOK_TURN_RATE * dt;
     var lim = Math.PI / 2 - 0.05;
     player.pitch = clamp(player.pitch, -lim, lim);
-  });
-  function endLook(e) { if (e.pointerId === lookPointerId) lookPointerId = null; }
-  lookZone.addEventListener("pointerup", endLook);
-  lookZone.addEventListener("pointercancel", endLook);
+  }
 
   // ---------- input: buttons ----------
   var jumpBtn = document.getElementById("jumpBtn");
   jumpBtn.addEventListener("pointerdown", function (e) { e.stopPropagation(); jumpHeld = true; tryJump(); });
   ["pointerup", "pointercancel", "pointerleave"].forEach(function (ev) {
     jumpBtn.addEventListener(ev, function () { jumpHeld = false; });
+  });
+
+  var flyDownBtn = document.getElementById("flyDownBtn");
+  flyDownBtn.addEventListener("pointerdown", function (e) { e.stopPropagation(); descendHeld = true; });
+  ["pointerup", "pointercancel", "pointerleave"].forEach(function (ev) {
+    flyDownBtn.addEventListener(ev, function () { descendHeld = false; });
   });
 
   var mineBtn = document.getElementById("mineBtn");
@@ -1121,9 +1182,9 @@
     Array.prototype.forEach.call(hotbarEl.children, function (slot) {
       var type = slot.dataset.type;
       var badge = slot.querySelector(".count");
-      if (badge) badge.textContent = inventory[type] || 0;
+      if (badge) badge.textContent = creativeMode ? "\u221E" : (inventory[type] || 0);
     });
-    placeBtn.style.opacity = (inventory[selectedType] || 0) > 0 ? "1" : "0.4";
+    placeBtn.style.opacity = (creativeMode || (inventory[selectedType] || 0) > 0) ? "1" : "0.4";
   }
   updateHotbarUI();
 
@@ -1146,6 +1207,7 @@
       dayTime: dayTime,
       player: { x: player.x, y: player.y, z: player.z, yaw: player.yaw },
       inventory: inventory,
+      creativeMode: creativeMode,
       edits: editsObj
     };
   }
@@ -1166,6 +1228,14 @@
     if (document.visibilityState === "hidden") saveNow();
   });
   window.addEventListener("beforeunload", saveNow);
+
+  function setCreativeMode(on) {
+    creativeMode = on;
+    flyDownBtn.classList.toggle("visible", on);
+    document.getElementById("creativeToggleBtn").textContent =
+      "\uD83C\uDFD7\uFE0F Creative mode: " + (on ? "ON" : "OFF");
+    updateHotbarUI();
+  }
 
   function loadSavedWorld() {
     var raw;
@@ -1196,6 +1266,7 @@
       player.z = data.player.z; player.yaw = data.player.yaw;
     }
     if (typeof data.dayTime === "number") dayTime = data.dayTime;
+    if (data.creativeMode) setCreativeMode(true);
     updateHotbarUI();
   }
   loadSavedWorld();
@@ -1211,6 +1282,11 @@
   menuBtn.addEventListener("pointerdown", function (e) { e.stopPropagation(); menuPanel.classList.remove("hidden"); });
   document.getElementById("menuCloseBtn").addEventListener("pointerdown", function (e) {
     e.stopPropagation(); menuPanel.classList.add("hidden");
+  });
+  document.getElementById("creativeToggleBtn").addEventListener("pointerdown", function (e) {
+    e.stopPropagation();
+    setCreativeMode(!creativeMode);
+    scheduleAutosave();
   });
   document.getElementById("saveBtn").addEventListener("pointerdown", function (e) {
     e.stopPropagation();
@@ -1277,6 +1353,7 @@
     lastTime = now;
 
     updatePlayer(dt);
+    updateLook(dt);
     camera.position.set(player.x, player.y + EYE_HEIGHT, player.z);
     camera.rotation.x = player.pitch;
     camera.rotation.y = player.yaw;
