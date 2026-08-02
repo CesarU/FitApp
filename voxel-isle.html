@@ -131,7 +131,10 @@
   .menuOption.danger { background: rgba(220,80,80,0.28); }
   #menuStatus { font-size: 12px; text-align: center; min-height: 16px; opacity: 0.85; }
   #menuCloseBtn { margin-top: 2px; padding: 10px; border-radius: 10px; border: none; background: rgba(255,255,255,0.08); color: #fff; }
-  #importFile { display: none; }
+  #importFile {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; opacity: 0;
+  }
 </style>
 </head>
 <body>
@@ -164,7 +167,7 @@
     <div id="menuStatus"></div>
     <button id="menuCloseBtn">Close</button>
   </div>
-  <input type="file" id="importFile" accept="application/json">
+  <input type="file" id="importFile" accept="application/json,.json">
 </div>
 
 <div id="overlay">
@@ -1342,20 +1345,20 @@
     menuStatus.textContent = msg;
     setTimeout(function () { menuStatus.textContent = ""; }, 2200);
   }
-  menuBtn.addEventListener("pointerdown", function (e) { e.stopPropagation(); menuPanel.classList.remove("hidden"); });
-  document.getElementById("menuCloseBtn").addEventListener("pointerdown", function (e) {
+  menuBtn.addEventListener("click", function (e) { e.stopPropagation(); menuPanel.classList.remove("hidden"); });
+  document.getElementById("menuCloseBtn").addEventListener("click", function (e) {
     e.stopPropagation(); menuPanel.classList.add("hidden");
   });
-  document.getElementById("creativeToggleBtn").addEventListener("pointerdown", function (e) {
+  document.getElementById("creativeToggleBtn").addEventListener("click", function (e) {
     e.stopPropagation();
     setCreativeMode(!creativeMode);
     scheduleAutosave();
   });
-  document.getElementById("saveBtn").addEventListener("pointerdown", function (e) {
+  document.getElementById("saveBtn").addEventListener("click", function (e) {
     e.stopPropagation();
     flashStatus(saveNow() ? "Saved!" : "Save failed (storage full?)");
   });
-  document.getElementById("exportBtn").addEventListener("pointerdown", function (e) {
+  document.getElementById("exportBtn").addEventListener("click", function (e) {
     e.stopPropagation();
     var blob = new Blob([JSON.stringify(buildSaveData())], { type: "application/json" });
     var url = URL.createObjectURL(blob);
@@ -1369,7 +1372,7 @@
     flashStatus("Exported!");
   });
   var importFile = document.getElementById("importFile");
-  document.getElementById("importBtn").addEventListener("pointerdown", function (e) {
+  document.getElementById("importBtn").addEventListener("click", function (e) {
     e.stopPropagation();
     importFile.click();
   });
@@ -1387,10 +1390,13 @@
         flashStatus("Import failed: not a valid save file");
       }
     };
+    reader.onerror = function () {
+      flashStatus("Import failed: couldn't read the file");
+    };
     reader.readAsText(file);
     importFile.value = "";
   });
-  document.getElementById("newWorldBtn").addEventListener("pointerdown", function (e) {
+  document.getElementById("newWorldBtn").addEventListener("click", function (e) {
     e.stopPropagation();
     if (window.confirm("Clear your saved world and start fresh? This can't be undone.")) {
       localStorage.removeItem(SAVE_KEY);
