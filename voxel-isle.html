@@ -106,7 +106,7 @@
     margin-top: 22px; padding: 14px 40px; font-size: 18px; border-radius: 30px;
     border: none; background: #6abe4f; color: #12210c; font-weight: 700;
   }
-  #fpsNote { position: fixed; top: calc(6px + env(safe-area-inset-top)); left: 8px; font-size: 10px; color: rgba(255,255,255,0.5); z-index: 2; pointer-events: none; }
+  #versionTag { position: fixed; top: calc(6px + env(safe-area-inset-top)); left: 8px; font-size: 10px; color: rgba(255,255,255,0.5); z-index: 2; pointer-events: none; }
 
   #menuBtn {
     position: absolute; top: calc(10px + env(safe-area-inset-top)); right: calc(10px + env(safe-area-inset-right));
@@ -148,6 +148,7 @@
   <div id="mineBtn">&#9935;</div>
   <div id="placeBtn">&#9634;</div>
   <div id="crosshair"></div>
+  <div id="versionTag"></div>
   <div id="hotbar"></div>
   <div id="menuBtn">&#9881;</div>
 </div>
@@ -198,6 +199,8 @@
   var SPEED = 4.3;
   var INSTANCE_CAP = 9000;
   var SAVE_KEY = "voxelIsleSave_v1";
+  var GAME_VERSION = "1.0.0";
+  document.getElementById("versionTag").textContent = "v" + GAME_VERSION;
 
   // deterministic PRNG so trees/desert decoration land in the exact same spots every load —
   // otherwise a reload could regrow a tree through a saved build
@@ -1263,6 +1266,7 @@
     worldEdits.forEach(function (v, k) { editsObj[k] = v; });
     return {
       v: 1,
+      gameVersion: GAME_VERSION,
       dayTime: dayTime,
       player: { x: player.x, y: player.y, z: player.z, yaw: player.yaw },
       inventory: inventory,
